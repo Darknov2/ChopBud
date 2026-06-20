@@ -10,6 +10,7 @@ public class TeleportSystem : MonoBehaviour
     [SerializeField] private float lineFadeDuration = 0.5f;
     [SerializeField] private float lineWidth = 0.1f;
     [SerializeField] private Color lineColor = Color.white;
+    [SerializeField] private float detectionRadius = 0.5f;
     
     private Camera mainCamera;
     
@@ -52,6 +53,9 @@ public class TeleportSystem : MonoBehaviour
         // Store initial position
         Vector3 startPos = transform.position;
         
+        // Check for enemies along the line BEFORE teleporting
+        CheckEnemiesOnLine(startPos, worldPos);
+        
         // Teleport player to mouse position
         transform.position = new Vector3(worldPos.x, worldPos.y, transform.position.z);
         
@@ -66,10 +70,6 @@ public class TeleportSystem : MonoBehaviour
         // Create a new GameObject for the line
         GameObject lineObject = new GameObject("TeleportLine");
         LineRenderer lineRenderer = lineObject.AddComponent<LineRenderer>();
-        
-        // Add collider for enemy detection
-        EdgeCollider2D edgeCollider = lineObject.AddComponent<EdgeCollider2D>();
-        edgeCollider.isTrigger = true;
         
         // Setup LineRenderer
         lineRenderer.positionCount = 2;
@@ -86,15 +86,6 @@ public class TeleportSystem : MonoBehaviour
         Color startColor = lineColor;
         lineRenderer.startColor = startColor;
         lineRenderer.endColor = startColor;
-        
-        // Setup edge collider points
-        Vector2[] points = new Vector2[2];
-        points[0] = startPos;
-        points[1] = endPos;
-        edgeCollider.points = points;
-        
-        // Check for enemies along the line
-        CheckEnemiesOnLine(startPos, endPos);
         
         // Fade out over time
         float elapsedTime = 0f;
@@ -119,26 +110,58 @@ public class TeleportSystem : MonoBehaviour
     
     private void CheckEnemiesOnLine(Vector3 startPos, Vector3 endPos)
     {
-        // Raycast from start to end to detect enemies
-        RaycastHit2D[] hits = Physics2D.RaycastAll(startPos, (endPos - startPos).normalized, Vector3.Distance(startPos, endPos));
+        Vector3 lineDirection = (endPos - startPos).normalized;
+        float lineDistance = Vector3.Distance(startPos, endPos);
         
-        foreach (RaycastHit2D hit in hits)
+        // Method 1: Raycast along the line
+        RaycastHit2D[] raycastHits = Physics2D.RaycastAll(startPos, lineDirection, lineDistance);
+        
+        Debug.Log("Raycast hits: " + raycastHits.Length);
+        
+        foreach (RaycastHit2D hit in raycastHits)
         {
-            if (hit.collider != null && hit.collider.CompareTag("Enemy"))
+            if (hit.collider != null)
             {
-                // Found an enemy on the line
-                EnemyLoot enemyLoot = hit.collider.GetComponent<EnemyLoot>();
+                Debug.Log("Hit: " + hit.collider.gameObject.name + " Tag: " + hit.collider.tag);
                 
-                if (enemyLoot != null)
+                if (hit.collider.CompareTag("Enemy"))
                 {
-                    // Drop loot before destroying
-                    enemyLoot.DropLoot();
+                    DestroyEnemy(hit.collider.gameObject);
                 }
-                
-                // Destroy the enemy
-                Destroy(hit.collider.gameObject);
-                Debug.Log("Enemy destroyed by teleport line!");
             }
         }
+        
+        // Method 2: Circle cast along the line to catch nearby enemies
+        int steps = Mathf.Max(5, (int)(lineDistance / 0.5f));
+        for (int i = 0; i < steps; i++)
+        {
+            float t = (float)i / steps;
+            Vector3 checkPos = Vector3.Lerp(startPos, endPos, t);
+            
+            Collider2D[] colliders = Physics2D.OverlapCircleAll(checkPos, detectionRadius);
+            
+            foreach (Collider2D collider in colliders)
+            {
+                if (collider.CompareTag("Enemy"))
+                {
+                    DestroyEnemy(collider.gameObject);
+                }
+            }
+        }
+    }
+    
+    private void DestroyEnemy(GameObject enemy)
+    {
+        EnemyLoot enemyLoot = enemy.GetComponent<EnemyLoot>();
+        
+        if (enemyLoot != null)
+        {
+            // Drop loot before destroying
+            enemyLoot.DropLoot();
+        }
+        
+        // Destroy the enemy
+        Destroy(enemy);
+        Debug.Log("Enemy destroyed by teleport line!");
     }
 }
