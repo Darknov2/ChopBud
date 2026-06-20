@@ -3,7 +3,6 @@ using UnityEngine;
 public class EnemyFollowAI : MonoBehaviour
 {
     [Header("Follow Settings")]
-    [SerializeField] private Transform playerTransform;
     [SerializeField] private float followSpeed = 3f;
     [SerializeField] private float detectionRange = 10f;
     [SerializeField] private float stoppingDistance = 0.5f;
@@ -12,6 +11,7 @@ public class EnemyFollowAI : MonoBehaviour
     [SerializeField] private SpriteRenderer spriteRenderer;
     
     private Rigidbody2D rb;
+    private Transform playerTransform;
     private Vector2 moveDirection = Vector2.zero;
     private bool isFollowing = false;
     
@@ -29,9 +29,15 @@ public class EnemyFollowAI : MonoBehaviour
             spriteRenderer = GetComponent<SpriteRenderer>();
         }
         
-        if (playerTransform == null)
+        // Find player by tag
+        GameObject playerObject = GameObject.FindWithTag("Player");
+        if (playerObject != null)
         {
-            Debug.LogError("Player transform not assigned to " + gameObject.name);
+            playerTransform = playerObject.transform;
+        }
+        else
+        {
+            Debug.LogError("Player with tag 'Player' not found in scene!");
         }
     }
     
@@ -98,12 +104,6 @@ public class EnemyFollowAI : MonoBehaviour
     private void UpdateAnimation()
     {
         // You can add animation support here later if needed
-    }
-    
-    // Public method to set player transform
-    public void SetPlayerTransform(Transform player)
-    {
-        playerTransform = player;
     }
     
     // Public method to check if enemy is following
