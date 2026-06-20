@@ -67,6 +67,10 @@ public class TeleportSystem : MonoBehaviour
         GameObject lineObject = new GameObject("TeleportLine");
         LineRenderer lineRenderer = lineObject.AddComponent<LineRenderer>();
         
+        // Add collider for enemy detection
+        EdgeCollider2D edgeCollider = lineObject.AddComponent<EdgeCollider2D>();
+        edgeCollider.isTrigger = true;
+        
         // Setup LineRenderer
         lineRenderer.positionCount = 2;
         lineRenderer.SetPosition(0, startPos);
@@ -82,6 +86,15 @@ public class TeleportSystem : MonoBehaviour
         Color startColor = lineColor;
         lineRenderer.startColor = startColor;
         lineRenderer.endColor = startColor;
+        
+        // Setup edge collider points
+        Vector2[] points = new Vector2[2];
+        points[0] = startPos;
+        points[1] = endPos;
+        edgeCollider.points = points;
+        
+        // Check for enemies along the line
+        CheckEnemiesOnLine(startPos, endPos);
         
         // Fade out over time
         float elapsedTime = 0f;
@@ -102,5 +115,30 @@ public class TeleportSystem : MonoBehaviour
         
         // Destroy the line object
         Destroy(lineObject);
+    }
+    
+    private void CheckEnemiesOnLine(Vector3 startPos, Vector3 endPos)
+    {
+        // Raycast from start to end to detect enemies
+        RaycastHit2D[] hits = Physics2D.RaycastAll(startPos, (endPos - startPos).normalized, Vector3.Distance(startPos, endPos));
+        
+        foreach (RaycastHit2D hit in hits)
+        {
+            if (hit.collider != null && hit.collider.CompareTag("Enemy"))
+            {
+                // Found an enemy on the line
+                EnemyLoot enemyLoot = hit.collider.GetComponent<EnemyLoot>();
+                
+                if (enemyLoot != null)
+                {
+                    // Drop loot before destroying
+                    enemyLoot.DropLoot();
+                }
+                
+                // Destroy the enemy
+                Destroy(hit.collider.gameObject);
+                Debug.Log("Enemy destroyed by teleport line!");
+            }
+        }
     }
 }
