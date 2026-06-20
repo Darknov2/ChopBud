@@ -4,8 +4,6 @@ public class TopDownPlayerMovement : MonoBehaviour
 {
     [Header("Movement")]
     [SerializeField] private float moveSpeed = 5f;
-    [SerializeField] private float acceleration = 20f;
-    [SerializeField] private float deceleration = 15f;
     
     [Header("Sprite Sorting")]
     [SerializeField] private SpriteRenderer bodyRenderer;
@@ -19,7 +17,6 @@ public class TopDownPlayerMovement : MonoBehaviour
     
     private Rigidbody2D rb;
     private Vector2 moveDirection = Vector2.zero;
-    private Vector2 currentVelocity = Vector2.zero;
     
     private void Start()
     {
@@ -70,27 +67,9 @@ public class TopDownPlayerMovement : MonoBehaviour
     
     private void Move()
     {
-        if (moveDirection.magnitude > 0)
-        {
-            // Accelerate towards target speed
-            currentVelocity = Vector2.Lerp(
-                currentVelocity,
-                moveDirection * moveSpeed,
-                acceleration * Time.fixedDeltaTime
-            );
-        }
-        else
-        {
-            // Decelerate to stop
-            currentVelocity = Vector2.Lerp(
-                currentVelocity,
-                Vector2.zero,
-                deceleration * Time.fixedDeltaTime
-            );
-        }
-        
-        // Apply velocity to Rigidbody2D
-        rb.velocity = currentVelocity;
+        // Apply velocity directly based on input
+        Vector2 velocity = moveDirection * moveSpeed;
+        rb.velocity = velocity;
         
         // Update animations if enabled
         if (useAnimations && legAnimator != null)
@@ -101,25 +80,16 @@ public class TopDownPlayerMovement : MonoBehaviour
     
     private void UpdateAnimations()
     {
-        bool isMoving = currentVelocity.magnitude > 0.01f;
+        bool isMoving = moveDirection.magnitude > 0.01f;
         
         // Trigger leg walking animation
         legAnimator.SetBool("isMoving", isMoving);
         
         // Set direction for directional animations
-        if (isMoving)
-        {
-            legAnimator.SetFloat("moveX", currentVelocity.x);
-            legAnimator.SetFloat("moveY", currentVelocity.y);
-        }
+        legAnimator.SetFloat("moveX", moveDirection.x);
+        legAnimator.SetFloat("moveY", moveDirection.y);
         
-        legAnimator.SetFloat("speed", currentVelocity.magnitude);
-    }
-    
-    // Public method to get current velocity
-    public Vector2 GetCurrentVelocity()
-    {
-        return currentVelocity;
+        legAnimator.SetFloat("speed", moveDirection.magnitude * moveSpeed);
     }
     
     // Public method to get move direction
@@ -131,6 +101,6 @@ public class TopDownPlayerMovement : MonoBehaviour
     // Public method to check if character is moving
     public bool IsMoving()
     {
-        return currentVelocity.magnitude > 0.01f;
+        return moveDirection.magnitude > 0.01f;
     }
 }
