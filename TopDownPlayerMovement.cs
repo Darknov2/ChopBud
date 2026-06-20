@@ -71,10 +71,27 @@ public class TopDownPlayerMovement : MonoBehaviour
         Vector2 velocity = moveDirection * moveSpeed;
         rb.velocity = velocity;
         
+        // Flip character based on horizontal movement
+        FlipCharacter();
+        
         // Update animations if enabled
         if (useAnimations && legAnimator != null)
         {
             UpdateAnimations();
+        }
+    }
+    
+    private void FlipCharacter()
+    {
+        if (moveDirection.x > 0)
+        {
+            // Moving right - face right
+            transform.localScale = new Vector3(1, transform.localScale.y, transform.localScale.z);
+        }
+        else if (moveDirection.x < 0)
+        {
+            // Moving left - face left
+            transform.localScale = new Vector3(-1, transform.localScale.y, transform.localScale.z);
         }
     }
     
