@@ -7,8 +7,14 @@ public class TopDownPlayerMovement : MonoBehaviour
     [SerializeField] private float acceleration = 20f;
     [SerializeField] private float deceleration = 15f;
     
+    [Header("Sprite Sorting")]
+    [SerializeField] private SpriteRenderer bodyRenderer;
+    [SerializeField] private SpriteRenderer legRenderer;
+    [SerializeField] private int bodySortingOrder = 1;
+    [SerializeField] private int legsSortingOrder = 0;
+    
     [Header("Animation")]
-    [SerializeField] private Animator animator;
+    [SerializeField] private Animator legAnimator;
     [SerializeField] private bool useAnimations = true;
     
     private Rigidbody2D rb;
@@ -24,9 +30,21 @@ public class TopDownPlayerMovement : MonoBehaviour
             Debug.LogError("Rigidbody2D component not found on " + gameObject.name);
         }
         
-        if (useAnimations && animator == null)
+        // Set up sprite sorting order
+        if (bodyRenderer != null)
         {
-            animator = GetComponent<Animator>();
+            bodyRenderer.sortingOrder = bodySortingOrder;
+        }
+        
+        if (legRenderer != null)
+        {
+            legRenderer.sortingOrder = legsSortingOrder;
+        }
+        
+        if (useAnimations && legAnimator == null)
+        {
+            // Try to find leg animator in children
+            legAnimator = GetComponentInChildren<Animator>();
         }
     }
     
@@ -75,7 +93,7 @@ public class TopDownPlayerMovement : MonoBehaviour
         rb.velocity = currentVelocity;
         
         // Update animations if enabled
-        if (useAnimations && animator != null)
+        if (useAnimations && legAnimator != null)
         {
             UpdateAnimations();
         }
@@ -83,17 +101,19 @@ public class TopDownPlayerMovement : MonoBehaviour
     
     private void UpdateAnimations()
     {
-        // Set movement parameters for animation
-        animator.SetFloat("moveX", currentVelocity.x);
-        animator.SetFloat("moveY", currentVelocity.y);
-        animator.SetFloat("speed", currentVelocity.magnitude);
+        bool isMoving = currentVelocity.magnitude > 0.01f;
         
-        // Optional: Set last facing direction when idle
-        if (currentVelocity.magnitude > 0.01f)
+        // Trigger leg walking animation
+        legAnimator.SetBool("isMoving", isMoving);
+        
+        // Set direction for directional animations
+        if (isMoving)
         {
-            animator.SetFloat("lastX", currentVelocity.x);
-            animator.SetFloat("lastY", currentVelocity.y);
+            legAnimator.SetFloat("moveX", currentVelocity.x);
+            legAnimator.SetFloat("moveY", currentVelocity.y);
         }
+        
+        legAnimator.SetFloat("speed", currentVelocity.magnitude);
     }
     
     // Public method to get current velocity
