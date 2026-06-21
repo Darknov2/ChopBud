@@ -15,6 +15,7 @@ public class TeleportSystem : MonoBehaviour
 {
     [Header("Teleport Settings")]
     [SerializeField] private HealthManager healthManager;
+    [SerializeField] private MouthAnimation mouthAnimation;
     
     [Header("Teleport Line Settings")]
     [SerializeField] private float lineFadeDuration = 0.5f;
@@ -35,6 +36,11 @@ public class TeleportSystem : MonoBehaviour
         if (healthManager == null)
         {
             healthManager = GetComponent<HealthManager>();
+        }
+        
+        if (mouthAnimation == null)
+        {
+            mouthAnimation = GetComponent<MouthAnimation>();
         }
         
         if (mainCamera == null)
@@ -81,6 +87,12 @@ public class TeleportSystem : MonoBehaviour
         
         // Create teleport line effect
         StartCoroutine(DrawTeleportLine(startPos, worldPos));
+        
+        // Play mouth animation on teleport
+        if (mouthAnimation != null)
+        {
+            mouthAnimation.PlayTeleportMouthAnimation();
+        }
         
         Debug.Log("Teleported to: " + worldPos);
     }
