@@ -12,6 +12,10 @@ public class TeleportSystem : MonoBehaviour
     [SerializeField] private Color lineColor = Color.white;
     [SerializeField] private float detectionRadius = 0.5f;
     
+    [Header("Combine Zone Settings")]
+    [SerializeField] private bool enableCombineOnTeleport = true;
+    [SerializeField] private float combineZoneWidth = 0.5f;
+    
     private Camera mainCamera;
     
     private void Start()
@@ -87,6 +91,13 @@ public class TeleportSystem : MonoBehaviour
         lineRenderer.startColor = startColor;
         lineRenderer.endColor = startColor;
         
+        // Create combine zone if enabled
+        GameObject combineZoneObject = null;
+        if (enableCombineOnTeleport)
+        {
+            combineZoneObject = CreateCombineZoneOnLine(startPos, endPos, lineFadeDuration);
+        }
+        
         // Fade out over time
         float elapsedTime = 0f;
         while (elapsedTime < lineFadeDuration)
@@ -106,6 +117,52 @@ public class TeleportSystem : MonoBehaviour
         
         // Destroy the line object
         Destroy(lineObject);
+        
+        // Destroy combine zone
+        if (combineZoneObject != null)
+        {
+            Destroy(combineZoneObject);
+        }
+    }
+    
+    private GameObject CreateCombineZoneOnLine(Vector3 startPos, Vector3 endPos, float duration)
+    {
+        // Create a GameObject for the combine zone
+        GameObject zoneObject = new GameObject("TempCombineZone");
+        
+        // Calculate center and length of line
+        Vector3 center = (startPos + endPos) / 2f;
+        float lineLength = Vector3.Distance(startPos, endPos);
+        
+        // Add BoxCollider2D
+        BoxCollider2D collider = zoneObject.AddComponent<BoxCollider2D>();
+        collider.isTrigger = true;
+        
+        // Rotate collider to match line direction
+        Vector3 lineDirection = (endPos - startPos).normalized;
+        float angle = Mathf.Atan2(lineDirection.y, lineDirection.x) * Mathf.Rad2Deg;
+        zoneObject.transform.rotation = Quaternion.AngleAxis(angle, Vector3.forward);
+        
+        // Set collider size
+        collider.size = new Vector2(lineLength, combineZoneWidth);
+        
+        // Position at line center
+        zoneObject.transform.position = center;
+        
+        // Add temporary ItemCombiner
+        ItemCombiner tempCombiner = zoneObject.AddComponent<ItemCombiner>();
+        
+        // Copy recipes from existing combiner if available
+        ItemCombiner existingCombiner = FindObjectOfType<ItemCombiner>();
+        if (existingCombiner != null)
+        {
+            // The ItemCombiner will use its default recipes
+            // You can expand this to copy recipes from existing combiner
+        }
+        
+        Debug.Log("Created temporary combine zone on teleport line");
+        
+        return zoneObject;
     }
     
     private void CheckEnemiesOnLine(Vector3 startPos, Vector3 endPos)
