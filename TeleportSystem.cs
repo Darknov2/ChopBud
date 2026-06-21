@@ -2,6 +2,15 @@ using UnityEngine;
 using System.Collections;
 using System.Collections.Generic;
 
+[System.Serializable]
+public class CombineRecipe
+{
+    public string itemName = "pancake";
+    public int requiredCount = 5;
+    public GameObject resultPrefab;
+    public bool enabled = true;
+}
+
 public class TeleportSystem : MonoBehaviour
 {
     [Header("Teleport Settings")]
@@ -13,9 +22,8 @@ public class TeleportSystem : MonoBehaviour
     [SerializeField] private Color lineColor = Color.white;
     [SerializeField] private float detectionRadius = 0.5f;
     
-    [Header("Combine Zone Settings")]
+    [Header("Combine Settings")]
     [SerializeField] private bool enableCombineOnTeleport = true;
-    [SerializeField] private float combineZoneWidth = 0.5f;
     [SerializeField] private List<CombineRecipe> combineRecipes = new List<CombineRecipe>();
     
     private Camera mainCamera;
@@ -62,6 +70,12 @@ public class TeleportSystem : MonoBehaviour
         // Check for enemies along the line BEFORE teleporting
         CheckEnemiesOnLine(startPos, worldPos);
         
+        // Check for items to combine on the line
+        if (enableCombineOnTeleport)
+        {
+            CombineItemsOnLine(startPos, worldPos);
+        }
+        
         // Teleport player to mouse position
         transform.position = new Vector3(worldPos.x, worldPos.y, transform.position.z);
         
@@ -93,13 +107,6 @@ public class TeleportSystem : MonoBehaviour
         lineRenderer.startColor = startColor;
         lineRenderer.endColor = startColor;
         
-        // Create combine zone if enabled
-        GameObject combineZoneObject = null;
-        if (enableCombineOnTeleport)
-        {
-            combineZoneObject = CreateCombineZoneOnLine(startPos, endPos, lineFadeDuration);
-        }
-        
         // Fade out over time
         float elapsedTime = 0f;
         while (elapsedTime < lineFadeDuration)
@@ -119,53 +126,90 @@ public class TeleportSystem : MonoBehaviour
         
         // Destroy the line object
         Destroy(lineObject);
+    }
+    
+    private void CombineItemsOnLine(Vector3 startPos, Vector3 endPos)
+    {
+        if (combineRecipes.Count == 0)
+            return;
         
-        // Destroy combine zone
-        if (combineZoneObject != null)
+        Vector3 lineDirection = (endPos - startPos).normalized;
+        float lineDistance = Vector3.Distance(startPos, endPos);
+        
+        // Check each recipe
+        foreach (CombineRecipe recipe in combineRecipes)
         {
-            Destroy(combineZoneObject);
+            if (!recipe.enabled || recipe.resultPrefab == null)
+                continue;
+            
+            // Find all items matching this recipe on the line
+            List<GameObject> matchingItems = new List<GameObject>();
+            
+            // Method 1: Raycast along the line
+            RaycastHit2D[] raycastHits = Physics2D.RaycastAll(startPos, lineDirection, lineDistance);
+            
+            foreach (RaycastHit2D hit in raycastHits)
+            {
+                if (hit.collider != null && hit.collider.gameObject.name.Contains(recipe.itemName))
+                {
+                    if (!matchingItems.Contains(hit.collider.gameObject))
+                    {
+                        matchingItems.Add(hit.collider.gameObject);
+                    }
+                }
+            }
+            
+            // Method 2: Circle cast along the line to catch nearby items
+            int steps = Mathf.Max(5, (int)(lineDistance / 0.5f));
+            for (int i = 0; i < steps; i++)
+            {
+                float t = (float)i / steps;
+                Vector3 checkPos = Vector3.Lerp(startPos, endPos, t);
+                
+                Collider2D[] colliders = Physics2D.OverlapCircleAll(checkPos, detectionRadius);
+                
+                foreach (Collider2D collider in colliders)
+                {
+                    if (collider.gameObject.name.Contains(recipe.itemName))
+                    {
+                        if (!matchingItems.Contains(collider.gameObject))
+                        {
+                            matchingItems.Add(collider.gameObject);
+                        }
+                    }
+                }
+            }
+            
+            // Check if we have enough items to combine
+            if (matchingItems.Count >= recipe.requiredCount)
+            {
+                CombineItems(matchingItems, recipe);
+            }
         }
     }
     
-    private GameObject CreateCombineZoneOnLine(Vector3 startPos, Vector3 endPos, float duration)
+    private void CombineItems(List<GameObject> items, CombineRecipe recipe)
     {
-        // Create a GameObject for the combine zone
-        GameObject zoneObject = new GameObject("TempCombineZone");
+        // Calculate average position
+        Vector3 spawnPosition = Vector3.zero;
         
-        // Calculate center and length of line
-        Vector3 center = (startPos + endPos) / 2f;
-        float lineLength = Vector3.Distance(startPos, endPos);
-        
-        // Add BoxCollider2D
-        BoxCollider2D collider = zoneObject.AddComponent<BoxCollider2D>();
-        collider.isTrigger = true;
-        
-        // Rotate collider to match line direction
-        Vector3 lineDirection = (endPos - startPos).normalized;
-        float angle = Mathf.Atan2(lineDirection.y, lineDirection.x) * Mathf.Rad2Deg;
-        zoneObject.transform.rotation = Quaternion.AngleAxis(angle, Vector3.forward);
-        
-        // Set collider size
-        collider.size = new Vector2(lineLength, combineZoneWidth);
-        
-        // Position at line center
-        zoneObject.transform.position = center;
-        
-        // Add temporary ItemCombiner
-        ItemCombiner tempCombiner = zoneObject.AddComponent<ItemCombiner>();
-        
-        // Add recipes to the temporary combiner
-        foreach (CombineRecipe recipe in combineRecipes)
+        for (int i = 0; i < recipe.requiredCount && i < items.Count; i++)
         {
-            if (recipe.resultPrefab != null)
-            {
-                tempCombiner.AddRecipe(recipe.itemName, recipe.requiredCount, recipe.resultPrefab);
-            }
+            spawnPosition += items[i].transform.position;
         }
         
-        Debug.Log("Created temporary combine zone on teleport line with " + combineRecipes.Count + " recipes");
+        spawnPosition /= recipe.requiredCount;
         
-        return zoneObject;
+        // Destroy original items
+        for (int i = 0; i < recipe.requiredCount && i < items.Count; i++)
+        {
+            Destroy(items[i]);
+        }
+        
+        // Spawn result item
+        GameObject resultItem = Instantiate(recipe.resultPrefab, spawnPosition, Quaternion.identity);
+        
+        Debug.Log("Combined " + recipe.requiredCount + "x " + recipe.itemName + " into " + recipe.resultPrefab.name);
     }
     
     private void CheckEnemiesOnLine(Vector3 startPos, Vector3 endPos)
