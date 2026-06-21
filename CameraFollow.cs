@@ -9,6 +9,7 @@ public class CameraFollow : MonoBehaviour
     [SerializeField] private bool smoothFollow = true;
     
     private Vector3 targetPosition;
+    private Camera cameraComponent;
     
     private void Start()
     {
@@ -24,9 +25,15 @@ public class CameraFollow : MonoBehaviour
             return;
         }
         
+        // Get camera component
+        cameraComponent = GetComponent<Camera>();
+        
         // Set initial position
         targetPosition = playerTransform.position + offset;
         transform.position = targetPosition;
+        
+        // Set camera rotation to be perfectly straight
+        transform.rotation = Quaternion.identity;
     }
     
     private void LateUpdate()
@@ -46,5 +53,8 @@ public class CameraFollow : MonoBehaviour
         {
             transform.position = targetPosition;
         }
+        
+        // Keep rotation fixed at identity (straight)
+        transform.rotation = Quaternion.identity;
     }
 }
