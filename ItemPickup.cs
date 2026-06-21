@@ -64,6 +64,13 @@ public class ItemPickup : MonoBehaviour
             CoinManager.instance.AddCoins(coinAmount);
         }
         
+        // Play pickup mouth animation
+        MouthAnimation mouthAnimation = player.GetComponent<MouthAnimation>();
+        if (mouthAnimation != null)
+        {
+            mouthAnimation.PlayPickupMouthAnimation();
+        }
+        
         // Play pickup sound
         if (playSound && audioSource != null && pickupSound != null)
         {
