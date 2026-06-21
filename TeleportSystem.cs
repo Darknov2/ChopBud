@@ -1,5 +1,6 @@
 using UnityEngine;
 using System.Collections;
+using System.Collections.Generic;
 
 public class TeleportSystem : MonoBehaviour
 {
@@ -15,6 +16,7 @@ public class TeleportSystem : MonoBehaviour
     [Header("Combine Zone Settings")]
     [SerializeField] private bool enableCombineOnTeleport = true;
     [SerializeField] private float combineZoneWidth = 0.5f;
+    [SerializeField] private List<CombineRecipe> combineRecipes = new List<CombineRecipe>();
     
     private Camera mainCamera;
     
@@ -152,15 +154,16 @@ public class TeleportSystem : MonoBehaviour
         // Add temporary ItemCombiner
         ItemCombiner tempCombiner = zoneObject.AddComponent<ItemCombiner>();
         
-        // Copy recipes from existing combiner if available
-        ItemCombiner existingCombiner = FindObjectOfType<ItemCombiner>();
-        if (existingCombiner != null)
+        // Add recipes to the temporary combiner
+        foreach (CombineRecipe recipe in combineRecipes)
         {
-            // The ItemCombiner will use its default recipes
-            // You can expand this to copy recipes from existing combiner
+            if (recipe.resultPrefab != null)
+            {
+                tempCombiner.AddRecipe(recipe.itemName, recipe.requiredCount, recipe.resultPrefab);
+            }
         }
         
-        Debug.Log("Created temporary combine zone on teleport line");
+        Debug.Log("Created temporary combine zone on teleport line with " + combineRecipes.Count + " recipes");
         
         return zoneObject;
     }
