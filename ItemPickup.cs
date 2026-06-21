@@ -6,8 +6,14 @@ public class ItemPickup : MonoBehaviour
     [SerializeField] private string playerTag = "Player";
     [SerializeField] private float pickupDelay = 0.1f;
     
+    [Header("Sound Settings")]
+    [SerializeField] private AudioClip pickupSound;
+    [SerializeField] private float soundVolume = 1f;
+    [SerializeField] private bool playSound = true;
+    
     private bool canPickup = true;
     private Collider2D itemCollider;
+    private AudioSource audioSource;
     
     private void Start()
     {
@@ -16,6 +22,15 @@ public class ItemPickup : MonoBehaviour
         if (itemCollider == null)
         {
             Debug.LogWarning("ItemPickup: No Collider2D found on " + gameObject.name);
+        }
+        
+        // Create AudioSource if playSound is enabled
+        if (playSound && pickupSound != null)
+        {
+            audioSource = gameObject.AddComponent<AudioSource>();
+            audioSource.clip = pickupSound;
+            audioSource.volume = soundVolume;
+            audioSource.playOnAwake = false;
         }
     }
     
@@ -39,15 +54,42 @@ public class ItemPickup : MonoBehaviour
     {
         Debug.Log("Item picked up by: " + player.name);
         
+        // Play pickup sound
+        if (playSound && audioSource != null && pickupSound != null)
+        {
+            audioSource.PlayOneShot(pickupSound, soundVolume);
+        }
+        
         // Add your inventory logic here
         // Example: player.GetComponent<Inventory>().AddItem(this);
         
-        // Destroy the item
-        Destroy(gameObject);
+        // Destroy the item after sound finishes (if sound is playing)
+        if (playSound && pickupSound != null)
+        {
+            Destroy(gameObject, pickupSound.length);
+        }
+        else
+        {
+            Destroy(gameObject);
+        }
     }
     
     public void SetPickupEnabled(bool enabled)
     {
         canPickup = enabled;
+    }
+    
+    public void SetPickupSound(AudioClip clip)
+    {
+        pickupSound = clip;
+    }
+    
+    public void SetSoundVolume(float volume)
+    {
+        soundVolume = Mathf.Clamp01(volume);
+        if (audioSource != null)
+        {
+            audioSource.volume = soundVolume;
+        }
     }
 }
