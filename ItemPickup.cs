@@ -11,6 +11,10 @@ public class ItemPickup : MonoBehaviour
     [SerializeField] private float soundVolume = 1f;
     [SerializeField] private bool playSound = true;
     
+    [Header("Coin Settings")]
+    [SerializeField] private int coinAmount = 10;
+    [SerializeField] private bool givesCoins = true;
+    
     private bool canPickup = true;
     private Collider2D itemCollider;
     private AudioSource audioSource;
@@ -54,6 +58,12 @@ public class ItemPickup : MonoBehaviour
     {
         Debug.Log("Item picked up by: " + player.name);
         
+        // Add coins to player
+        if (givesCoins && CoinManager.instance != null)
+        {
+            CoinManager.instance.AddCoins(coinAmount);
+        }
+        
         // Play pickup sound
         if (playSound && audioSource != null && pickupSound != null)
         {
@@ -91,5 +101,10 @@ public class ItemPickup : MonoBehaviour
         {
             audioSource.volume = soundVolume;
         }
+    }
+    
+    public void SetCoinAmount(int amount)
+    {
+        coinAmount = amount;
     }
 }
