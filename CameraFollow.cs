@@ -8,10 +8,6 @@ public class CameraFollow : MonoBehaviour
     [SerializeField] private Vector3 offset = new Vector3(0, 2, -10);
     [SerializeField] private bool smoothFollow = true;
     
-    [Header("Look Ahead")]
-    [SerializeField] private bool lookAtPlayer = true;
-    [SerializeField] private float lookSmoothSpeed = 3f;
-    
     private Vector3 targetPosition;
     
     private void Start()
@@ -49,14 +45,6 @@ public class CameraFollow : MonoBehaviour
         else
         {
             transform.position = targetPosition;
-        }
-        
-        // Look at player
-        if (lookAtPlayer)
-        {
-            Vector3 directionToPlayer = playerTransform.position - transform.position;
-            Quaternion targetRotation = Quaternion.LookRotation(directionToPlayer);
-            transform.rotation = Quaternion.Lerp(transform.rotation, targetRotation, lookSmoothSpeed * Time.deltaTime);
         }
     }
 }
