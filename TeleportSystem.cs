@@ -97,7 +97,7 @@ public class TeleportSystem : MonoBehaviour
             CheckAndCombineRecipes(startPos, worldPos);
         }
         
-        // STEP 2: Pick up ALL remaining items along the line
+        // STEP 2: Pick up ALL remaining items along the line and collect coins
         if (pickupAllItems)
         {
             PickupAllItemsOnLine(startPos, worldPos);
@@ -267,28 +267,62 @@ public class TeleportSystem : MonoBehaviour
         }
         
         // Pick up all remaining items found
+        int totalCoinsCollected = 0;
         foreach (GameObject item in itemsToPickup)
         {
-            PickupItem(item);
+            totalCoinsCollected += PickupItem(item);
         }
         
         if (itemsToPickup.Count > 0)
         {
-            Debug.Log("Picked up " + itemsToPickup.Count + " items!");
+            Debug.Log("Picked up " + itemsToPickup.Count + " items! Total coins: " + totalCoinsCollected);
         }
     }
     
-    private void PickupItem(GameObject item)
+    private int PickupItem(GameObject item)
     {
         if (pickedUpItems.Contains(item))
-            return;
+            return 0;
         
         pickedUpItems.Add(item);
+        
+        // Get the ItemPickup component to check coin amount
+        ItemPickup itemPickup = item.GetComponent<ItemPickup>();
+        int coinsFromItem = 0;
+        
+        if (itemPickup != null)
+        {
+            // Use reflection to get the private coinAmount field
+            System.Reflection.FieldInfo coinField = itemPickup.GetType().GetField("coinAmount", 
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            
+            if (coinField != null)
+            {
+                coinsFromItem = (int)coinField.GetValue(itemPickup);
+            }
+            
+            Debug.Log("Item " + item.name + " provides " + coinsFromItem + " coins");
+        }
+        
+        // Add coins to CoinManager
+        if (CoinManager.instance != null)
+        {
+            CoinManager.instance.AddCoins(coinsFromItem);
+        }
+        
+        // Play pickup mouth animation
+        MouthAnimation mouthAnimation = GameObject.FindGameObjectWithTag("Player")?.GetComponent<MouthAnimation>();
+        if (mouthAnimation != null)
+        {
+            mouthAnimation.PlayPickupMouthAnimation();
+        }
         
         // Destroy the item
         Destroy(item);
         
         Debug.Log("Picked up item: " + item.name);
+        
+        return coinsFromItem;
     }
     
     private void CombineItems(List<GameObject> items, CombineRecipe recipe)
