@@ -27,8 +27,13 @@ public class TeleportSystem : MonoBehaviour
     [SerializeField] private bool enableCombineOnTeleport = true;
     [SerializeField] private List<CombineRecipe> combineRecipes = new List<CombineRecipe>();
     
+    [Header("Item Pickup Settings")]
+    [SerializeField] private bool pickupAllItems = true;
+    [SerializeField] private string itemPickupTag = "Item";
+    
     private Camera mainCamera;
     private InputManager inputManager;
+    private HashSet<GameObject> pickedUpItems = new HashSet<GameObject>();
     
     private void Start()
     {
@@ -83,10 +88,19 @@ public class TeleportSystem : MonoBehaviour
         // Store initial position
         Vector3 startPos = transform.position;
         
-        // Check for enemies along the line BEFORE teleporting
+        // Clear picked up items from last teleport
+        pickedUpItems.Clear();
+        
+        // Pick up ALL items along the line FIRST
+        if (pickupAllItems)
+        {
+            PickupAllItemsOnLine(startPos, worldPos);
+        }
+        
+        // Check for enemies along the line
         CheckEnemiesOnLine(startPos, worldPos);
         
-        // Check for items to combine on the line
+        // Check for items to combine on the line (after picking up)
         if (enableCombineOnTeleport)
         {
             CombineItemsOnLine(startPos, worldPos);
@@ -150,6 +164,73 @@ public class TeleportSystem : MonoBehaviour
         Destroy(lineObject);
     }
     
+    private void PickupAllItemsOnLine(Vector3 startPos, Vector3 endPos)
+    {
+        Vector3 lineDirection = (endPos - startPos).normalized;
+        float lineDistance = Vector3.Distance(startPos, endPos);
+        
+        List<GameObject> itemsToPickup = new List<GameObject>();
+        
+        // Method 1: Raycast along the line
+        RaycastHit2D[] raycastHits = Physics2D.RaycastAll(startPos, lineDirection, lineDistance);
+        
+        foreach (RaycastHit2D hit in raycastHits)
+        {
+            if (hit.collider != null && hit.collider.CompareTag(itemPickupTag))
+            {
+                if (!itemsToPickup.Contains(hit.collider.gameObject))
+                {
+                    itemsToPickup.Add(hit.collider.gameObject);
+                }
+            }
+        }
+        
+        // Method 2: Circle cast along the line to catch nearby items
+        int steps = Mathf.Max(5, (int)(lineDistance / 0.5f));
+        for (int i = 0; i < steps; i++)
+        {
+            float t = (float)i / steps;
+            Vector3 checkPos = Vector3.Lerp(startPos, endPos, t);
+            
+            Collider2D[] colliders = Physics2D.OverlapCircleAll(checkPos, detectionRadius);
+            
+            foreach (Collider2D collider in colliders)
+            {
+                if (collider.CompareTag(itemPickupTag))
+                {
+                    if (!itemsToPickup.Contains(collider.gameObject))
+                    {
+                        itemsToPickup.Add(collider.gameObject);
+                    }
+                }
+            }
+        }
+        
+        // Pick up all items found
+        foreach (GameObject item in itemsToPickup)
+        {
+            PickupItem(item);
+        }
+        
+        if (itemsToPickup.Count > 0)
+        {
+            Debug.Log("Picked up " + itemsToPickup.Count + " items!");
+        }
+    }
+    
+    private void PickupItem(GameObject item)
+    {
+        if (pickedUpItems.Contains(item))
+            return;
+        
+        pickedUpItems.Add(item);
+        
+        // Destroy the item
+        Destroy(item);
+        
+        Debug.Log("Picked up item: " + item.name);
+    }
+    
     private void CombineItemsOnLine(Vector3 startPos, Vector3 endPos)
     {
         if (combineRecipes.Count == 0)
@@ -174,7 +255,7 @@ public class TeleportSystem : MonoBehaviour
             {
                 if (hit.collider != null && hit.collider.gameObject.name.Contains(recipe.itemName))
                 {
-                    if (!matchingItems.Contains(hit.collider.gameObject))
+                    if (!matchingItems.Contains(hit.collider.gameObject) && !pickedUpItems.Contains(hit.collider.gameObject))
                     {
                         matchingItems.Add(hit.collider.gameObject);
                     }
@@ -194,7 +275,7 @@ public class TeleportSystem : MonoBehaviour
                 {
                     if (collider.gameObject.name.Contains(recipe.itemName))
                     {
-                        if (!matchingItems.Contains(collider.gameObject))
+                        if (!matchingItems.Contains(collider.gameObject) && !pickedUpItems.Contains(collider.gameObject))
                         {
                             matchingItems.Add(collider.gameObject);
                         }
@@ -226,6 +307,7 @@ public class TeleportSystem : MonoBehaviour
         for (int i = 0; i < recipe.requiredCount && i < items.Count; i++)
         {
             Destroy(items[i]);
+            pickedUpItems.Add(items[i]);
         }
         
         // Spawn result item
