@@ -28,6 +28,7 @@ public class TeleportSystem : MonoBehaviour
     [SerializeField] private List<CombineRecipe> combineRecipes = new List<CombineRecipe>();
     
     private Camera mainCamera;
+    private InputManager inputManager;
     
     private void Start()
     {
@@ -43,32 +44,41 @@ public class TeleportSystem : MonoBehaviour
             mouthAnimation = GetComponent<MouthAnimation>();
         }
         
+        // Get InputManager instance
+        if (InputManager.instance != null)
+        {
+            inputManager = InputManager.instance;
+            // Subscribe to teleport input event
+            inputManager.OnTeleportInput += TeleportToMouse;
+        }
+        else
+        {
+            Debug.LogWarning("InputManager not found in scene! Teleport input will not work.");
+        }
+        
         if (mainCamera == null)
         {
             Debug.LogError("Main camera not found!");
         }
     }
     
-    private void Update()
+    private void OnDestroy()
     {
-        // Check if player is dead
-        if (healthManager != null && healthManager.IsDead())
-            return;
-        
-        // Check for mouse click
-        if (Input.GetMouseButtonDown(0))
+        // Unsubscribe from input event
+        if (inputManager != null)
         {
-            TeleportToMouse();
+            inputManager.OnTeleportInput -= TeleportToMouse;
         }
     }
     
     private void TeleportToMouse()
     {
-        // Get mouse position in world coordinates
-        Vector3 mousePos = Input.mousePosition;
-        mousePos.z = 10f; // Distance from camera
+        // Check if player is dead
+        if (healthManager != null && healthManager.IsDead())
+            return;
         
-        Vector3 worldPos = mainCamera.ScreenToWorldPoint(mousePos);
+        // Get teleport position from InputManager (works on both mobile and desktop)
+        Vector3 worldPos = inputManager.GetInputWorldPosition(mainCamera);
         
         // Store initial position
         Vector3 startPos = transform.position;
