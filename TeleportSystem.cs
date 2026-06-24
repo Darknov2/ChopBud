@@ -34,7 +34,6 @@ public class TeleportSystem : MonoBehaviour
     private Camera mainCamera;
     private InputManager inputManager;
     private HashSet<GameObject> pickedUpItems = new HashSet<GameObject>();
-    private Dictionary<string, List<GameObject>> collectedItemsByType = new Dictionary<string, List<GameObject>>();
     
     private void Start()
     {
@@ -89,29 +88,22 @@ public class TeleportSystem : MonoBehaviour
         // Store initial position
         Vector3 startPos = transform.position;
         
-        // Clear collected items from last teleport
+        // Clear picked up items from last teleport
         pickedUpItems.Clear();
-        collectedItemsByType.Clear();
         
-        // STEP 1: Check recipes first - collect all items matching recipes
+        // STEP 1: Check recipes first and collect matching items
         if (enableCombineOnTeleport)
         {
-            CheckAndCollectRecipeItems(startPos, worldPos);
+            CheckAndCombineRecipes(startPos, worldPos);
         }
         
-        // STEP 2: Execute recipes based on collected items
-        if (enableCombineOnTeleport)
-        {
-            ExecuteRecipes();
-        }
-        
-        // STEP 3: Pick up ALL remaining items along the line (not used in recipes)
+        // STEP 2: Pick up ALL remaining items along the line
         if (pickupAllItems)
         {
             PickupAllItemsOnLine(startPos, worldPos);
         }
         
-        // STEP 4: Check for enemies along the line
+        // STEP 3: Check for enemies along the line
         CheckEnemiesOnLine(startPos, worldPos);
         
         // Teleport player to mouse position
@@ -129,103 +121,62 @@ public class TeleportSystem : MonoBehaviour
         Debug.Log("Teleported to: " + worldPos);
     }
     
-    private void CheckAndCollectRecipeItems(Vector3 startPos, Vector3 endPos)
+    private void CheckAndCombineRecipes(Vector3 startPos, Vector3 endPos)
     {
+        if (combineRecipes.Count == 0)
+            return;
+        
         Vector3 lineDirection = (endPos - startPos).normalized;
         float lineDistance = Vector3.Distance(startPos, endPos);
         
-        // Initialize dictionaries for each recipe item type
-        foreach (CombineRecipe recipe in combineRecipes)
-        {
-            if (!collectedItemsByType.ContainsKey(recipe.itemName))
-            {
-                collectedItemsByType[recipe.itemName] = new List<GameObject>();
-            }
-        }
-        
-        List<GameObject> allItemsOnLine = new List<GameObject>();
-        
-        // Method 1: Raycast along the line
-        RaycastHit2D[] raycastHits = Physics2D.RaycastAll(startPos, lineDirection, lineDistance);
-        
-        foreach (RaycastHit2D hit in raycastHits)
-        {
-            if (hit.collider != null && hit.collider.CompareTag(itemPickupTag))
-            {
-                if (!allItemsOnLine.Contains(hit.collider.gameObject))
-                {
-                    allItemsOnLine.Add(hit.collider.gameObject);
-                }
-            }
-        }
-        
-        // Method 2: Circle cast along the line to catch nearby items
-        int steps = Mathf.Max(5, (int)(lineDistance / 0.5f));
-        for (int i = 0; i < steps; i++)
-        {
-            float t = (float)i / steps;
-            Vector3 checkPos = Vector3.Lerp(startPos, endPos, t);
-            
-            Collider2D[] colliders = Physics2D.OverlapCircleAll(checkPos, detectionRadius);
-            
-            foreach (Collider2D collider in colliders)
-            {
-                if (collider.CompareTag(itemPickupTag))
-                {
-                    if (!allItemsOnLine.Contains(collider.gameObject))
-                    {
-                        allItemsOnLine.Add(collider.gameObject);
-                    }
-                }
-            }
-        }
-        
-        // Sort items by recipe type
-        foreach (GameObject item in allItemsOnLine)
-        {
-            foreach (CombineRecipe recipe in combineRecipes)
-            {
-                if (item.name.Contains(recipe.itemName))
-                {
-                    collectedItemsByType[recipe.itemName].Add(item);
-                    pickedUpItems.Add(item);
-                    Debug.Log("Recipe check: Found " + recipe.itemName + " (Total: " + collectedItemsByType[recipe.itemName].Count + ")");
-                    break;
-                }
-            }
-        }
-    }
-    
-    private void ExecuteRecipes()
-    {
+        // Check each recipe
         foreach (CombineRecipe recipe in combineRecipes)
         {
             if (!recipe.enabled || recipe.resultPrefab == null)
                 continue;
             
-            if (collectedItemsByType.ContainsKey(recipe.itemName))
+            // Find all items matching this recipe on the line
+            List<GameObject> matchingItems = new List<GameObject>();
+            
+            // Method 1: Raycast along the line
+            RaycastHit2D[] raycastHits = Physics2D.RaycastAll(startPos, lineDirection, lineDistance);
+            
+            foreach (RaycastHit2D hit in raycastHits)
             {
-                List<GameObject> items = collectedItemsByType[recipe.itemName];
-                
-                // Check if we have enough items for this recipe
-                while (items.Count >= recipe.requiredCount)
+                if (hit.collider != null && hit.collider.gameObject.name.Contains(recipe.itemName))
                 {
-                    // Get the required number of items
-                    List<GameObject> itemsToUse = new List<GameObject>();
-                    for (int i = 0; i < recipe.requiredCount; i++)
+                    if (!matchingItems.Contains(hit.collider.gameObject) && !pickedUpItems.Contains(hit.collider.gameObject))
                     {
-                        itemsToUse.Add(items[i]);
-                    }
-                    
-                    // Combine them
-                    CombineItems(itemsToUse, recipe);
-                    
-                    // Remove used items from the list
-                    for (int i = 0; i < recipe.requiredCount; i++)
-                    {
-                        items.RemoveAt(0);
+                        matchingItems.Add(hit.collider.gameObject);
                     }
                 }
+            }
+            
+            // Method 2: Circle cast along the line to catch nearby items
+            int steps = Mathf.Max(5, (int)(lineDistance / 0.5f));
+            for (int i = 0; i < steps; i++)
+            {
+                float t = (float)i / steps;
+                Vector3 checkPos = Vector3.Lerp(startPos, endPos, t);
+                
+                Collider2D[] colliders = Physics2D.OverlapCircleAll(checkPos, detectionRadius);
+                
+                foreach (Collider2D collider in colliders)
+                {
+                    if (collider.gameObject.name.Contains(recipe.itemName))
+                    {
+                        if (!matchingItems.Contains(collider.gameObject) && !pickedUpItems.Contains(collider.gameObject))
+                        {
+                            matchingItems.Add(collider.gameObject);
+                        }
+                    }
+                }
+            }
+            
+            // Check if we have enough items to combine
+            if (matchingItems.Count >= recipe.requiredCount)
+            {
+                CombineItems(matchingItems, recipe);
             }
         }
     }
@@ -323,7 +274,7 @@ public class TeleportSystem : MonoBehaviour
         
         if (itemsToPickup.Count > 0)
         {
-            Debug.Log("Picked up " + itemsToPickup.Count + " remaining items!");
+            Debug.Log("Picked up " + itemsToPickup.Count + " items!");
         }
     }
     
@@ -352,11 +303,12 @@ public class TeleportSystem : MonoBehaviour
         
         spawnPosition /= recipe.requiredCount;
         
-        // Destroy original items
+        // Destroy original items and mark them as picked up
         for (int i = 0; i < recipe.requiredCount && i < items.Count; i++)
         {
             if (items[i] != null)
             {
+                pickedUpItems.Add(items[i]);
                 Destroy(items[i]);
             }
         }
