@@ -13,6 +13,7 @@ public class EnemyLoot : MonoBehaviour
     [SerializeField] private float scatterRadius = 3f;
     [SerializeField] private float upwardForce = 3f; // Initial upward velocity
     [SerializeField] private float pickupDelay = 0.2f; // Delay before items can be picked up
+    [SerializeField] private float stopFallHeight = -5f; // Y position where items stop falling
     
     public void DropLoot()
     {
@@ -66,6 +67,9 @@ public class EnemyLoot : MonoBehaviour
                     StartCoroutine(EnablePickupAfterDelay(itemPickup));
                 }
                 
+                // Start monitoring for when item reaches stop fall height
+                StartCoroutine(MonitorItemFall(droppedItem, rb));
+                
                 Debug.Log("Dropped " + lootItemName + " at position: " + dropPosition + " with physics movement");
             }
             Debug.Log("Total dropped: " + lootAmount + " x " + lootItemName);
@@ -73,6 +77,26 @@ public class EnemyLoot : MonoBehaviour
         else
         {
             Debug.LogWarning("Loot prefab not assigned for: " + gameObject.name);
+        }
+    }
+    
+    private IEnumerator MonitorItemFall(GameObject item, Rigidbody2D rb)
+    {
+        while (item != null && rb != null)
+        {
+            // Check if item has reached the stop fall height
+            if (item.transform.position.y <= stopFallHeight)
+            {
+                // Stop the item from falling
+                rb.velocity = Vector2.zero;
+                rb.angularVelocity = 0f;
+                rb.isKinematic = true;
+                
+                Debug.Log("Item stopped falling at height: " + item.transform.position.y);
+                break;
+            }
+            
+            yield return null;
         }
     }
     
