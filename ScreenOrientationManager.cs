@@ -104,10 +104,10 @@ public class ScreenOrientationManager : MonoBehaviour
         Debug.Log("Orientation changed! Width: " + Screen.width + " Height: " + Screen.height);
         
         // Update canvas scaler if assigned
-        if (canvasScaler != null)
+        if (canvas != null)
         {
             // Force layout rebuild
-            LayoutRebuilder.ForceRebuildLayoutHierarchy(canvas.GetComponent<RectTransform>());
+            LayoutRebuilder.MarkLayoutForRebuild(canvas.GetComponent<RectTransform>());
         }
         
         // Notify other scripts of orientation change
