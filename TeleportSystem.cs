@@ -34,47 +34,46 @@ public class TeleportSystem : MonoBehaviour
     private Camera mainCamera;
     private InputManager inputManager;
     private HashSet<GameObject> pickedUpItems = new HashSet<GameObject>();
-    private Dictionary<string, int> collectedItemCounts = new Dictionary<string, int>();
+    private Dictionary<string, List<GameObject>> collectedItemsByType = new Dictionary<string, List<GameObject>>();
     
     private void Start()
     {
-        if (canvas == null)
-            canvas = FindObjectOfType<Canvas>();
+        mainCamera = Camera.main;
         
-        if (canvas == null)
+        if (healthManager == null)
         {
-            Debug.LogError("Canvas not found! Make sure there is a Canvas in your scene.");
-            return;
+            healthManager = GetComponent<HealthManager>();
         }
         
-        lastScreenWidth = Screen.width;
-        lastScreenHeight = Screen.height;
+        if (mouthAnimation == null)
+        {
+            mouthAnimation = GetComponent<MouthAnimation>();
+        }
         
-        // Position all UI elements on start
-        PositionAllElements();
+        // Get InputManager instance
+        if (InputManager.instance != null)
+        {
+            inputManager = InputManager.instance;
+            // Subscribe to teleport input event
+            inputManager.OnTeleportInput += TeleportToMouse;
+        }
+        else
+        {
+            Debug.LogWarning("InputManager not found in scene! Teleport input will not work.");
+        }
         
-        Debug.Log("AutoPositionUI initialized. Canvas dimensions: " + canvas.GetComponent<RectTransform>().rect.size);
+        if (mainCamera == null)
+        {
+            Debug.LogError("Main camera not found!");
+        }
     }
     
-    private void Update()
+    private void OnDestroy()
     {
-        // Check for orientation changes periodically
-        lastCheckTime += Time.deltaTime;
-        if (lastCheckTime >= orientationCheckInterval)
+        // Unsubscribe from input event
+        if (inputManager != null)
         {
-            lastCheckTime = 0f;
-            
-            // Check if screen size changed
-            if (Screen.width != lastScreenWidth || Screen.height != lastScreenHeight)
-            {
-                lastScreenWidth = Screen.width;
-                lastScreenHeight = Screen.height;
-                
-                if (debugMode)
-                    Debug.Log("Screen size changed! Repositioning UI elements.");
-                
-                PositionAllElements();
-            }
+            inputManager.OnTeleportInput -= TeleportToMouse;
         }
     }
     
@@ -90,26 +89,26 @@ public class TeleportSystem : MonoBehaviour
         // Store initial position
         Vector3 startPos = transform.position;
         
-        // Clear picked up items and collected counts from last teleport
+        // Clear collected items from last teleport
         pickedUpItems.Clear();
-        collectedItemCounts.Clear();
+        collectedItemsByType.Clear();
         
-        // STEP 1: Check recipes FIRST along the line
+        // STEP 1: Check recipes first - collect all items matching recipes
         if (enableCombineOnTeleport)
         {
-            CheckRecipesOnLine(startPos, worldPos);
+            CheckAndCollectRecipeItems(startPos, worldPos);
         }
         
-        // STEP 2: Pick up ALL items along the line
-        if (pickupAllItems)
-        {
-            PickupAllItemsOnLine(startPos, worldPos);
-        }
-        
-        // STEP 3: Execute recipes based on collected items
+        // STEP 2: Execute recipes based on collected items
         if (enableCombineOnTeleport)
         {
             ExecuteRecipes();
+        }
+        
+        // STEP 3: Pick up ALL remaining items along the line (not used in recipes)
+        if (pickupAllItems)
+        {
+            PickupAllItemsOnLine(startPos, worldPos);
         }
         
         // STEP 4: Check for enemies along the line
@@ -130,19 +129,21 @@ public class TeleportSystem : MonoBehaviour
         Debug.Log("Teleported to: " + worldPos);
     }
     
-    private void CheckRecipesOnLine(Vector3 startPos, Vector3 endPos)
+    private void CheckAndCollectRecipeItems(Vector3 startPos, Vector3 endPos)
     {
         Vector3 lineDirection = (endPos - startPos).normalized;
         float lineDistance = Vector3.Distance(startPos, endPos);
         
-        // Initialize counters for each recipe item type
+        // Initialize dictionaries for each recipe item type
         foreach (CombineRecipe recipe in combineRecipes)
         {
-            if (!collectedItemCounts.ContainsKey(recipe.itemName))
+            if (!collectedItemsByType.ContainsKey(recipe.itemName))
             {
-                collectedItemCounts[recipe.itemName] = 0;
+                collectedItemsByType[recipe.itemName] = new List<GameObject>();
             }
         }
+        
+        List<GameObject> allItemsOnLine = new List<GameObject>();
         
         // Method 1: Raycast along the line
         RaycastHit2D[] raycastHits = Physics2D.RaycastAll(startPos, lineDirection, lineDistance);
@@ -151,15 +152,9 @@ public class TeleportSystem : MonoBehaviour
         {
             if (hit.collider != null && hit.collider.CompareTag(itemPickupTag))
             {
-                // Check if this item matches any recipe
-                foreach (CombineRecipe recipe in combineRecipes)
+                if (!allItemsOnLine.Contains(hit.collider.gameObject))
                 {
-                    if (hit.collider.gameObject.name.Contains(recipe.itemName))
-                    {
-                        collectedItemCounts[recipe.itemName]++;
-                        Debug.Log("Recipe check: Found " + recipe.itemName + " (Total: " + collectedItemCounts[recipe.itemName] + ")");
-                        break;
-                    }
+                    allItemsOnLine.Add(hit.collider.gameObject);
                 }
             }
         }
@@ -177,141 +172,62 @@ public class TeleportSystem : MonoBehaviour
             {
                 if (collider.CompareTag(itemPickupTag))
                 {
-                    // Check if this item matches any recipe
-                    foreach (CombineRecipe recipe in combineRecipes)
+                    if (!allItemsOnLine.Contains(collider.gameObject))
                     {
-                        if (collider.gameObject.name.Contains(recipe.itemName))
-                        {
-                            if (collectedItemCounts[recipe.itemName] == 0 || !HasBeenCounted(collider.gameObject))
-                            {
-                                collectedItemCounts[recipe.itemName]++;
-                                Debug.Log("Recipe check (circle): Found " + recipe.itemName + " (Total: " + collectedItemCounts[recipe.itemName] + ")");
-                            }
-                            break;
-                        }
+                        allItemsOnLine.Add(collider.gameObject);
                     }
                 }
             }
         }
         
-        Debug.Log("Recipe check complete. Item counts: " + string.Join(", ", collectedItemCounts));
-    }
-    
-    private void PickupAllItemsOnLine(Vector3 startPos, Vector3 endPos)
-    {
-        Vector3 lineDirection = (endPos - startPos).normalized;
-        float lineDistance = Vector3.Distance(startPos, endPos);
-        
-        List<GameObject> itemsToPickup = new List<GameObject>();
-        
-        // Method 1: Raycast along the line
-        RaycastHit2D[] raycastHits = Physics2D.RaycastAll(startPos, lineDirection, lineDistance);
-        
-        foreach (RaycastHit2D hit in raycastHits)
+        // Sort items by recipe type
+        foreach (GameObject item in allItemsOnLine)
         {
-            if (hit.collider != null && hit.collider.CompareTag(itemPickupTag))
+            foreach (CombineRecipe recipe in combineRecipes)
             {
-                if (!itemsToPickup.Contains(hit.collider.gameObject))
+                if (item.name.Contains(recipe.itemName))
                 {
-                    itemsToPickup.Add(hit.collider.gameObject);
+                    collectedItemsByType[recipe.itemName].Add(item);
+                    pickedUpItems.Add(item);
+                    Debug.Log("Recipe check: Found " + recipe.itemName + " (Total: " + collectedItemsByType[recipe.itemName].Count + ")");
+                    break;
                 }
             }
         }
-        
-        // Method 2: Circle cast along the line to catch nearby items
-        int steps = Mathf.Max(5, (int)(lineDistance / 0.5f));
-        for (int i = 0; i < steps; i++)
-        {
-            float t = (float)i / steps;
-            Vector3 checkPos = Vector3.Lerp(startPos, endPos, t);
-            
-            Collider2D[] colliders = Physics2D.OverlapCircleAll(checkPos, detectionRadius);
-            
-            foreach (Collider2D collider in colliders)
-            {
-                if (collider.CompareTag(itemPickupTag))
-                {
-                    if (!itemsToPickup.Contains(collider.gameObject))
-                    {
-                        itemsToPickup.Add(collider.gameObject);
-                    }
-                }
-            }
-        }
-        
-        // Pick up all items found
-        foreach (GameObject item in itemsToPickup)
-        {
-            PickupItem(item);
-        }
-        
-        if (itemsToPickup.Count > 0)
-        {
-            Debug.Log("Picked up " + itemsToPickup.Count + " items!");
-        }
-    }
-    
-    private void PickupItem(GameObject item)
-    {
-        if (pickedUpItems.Contains(item))
-            return;
-        
-        pickedUpItems.Add(item);
-        
-        // Destroy the item
-        Destroy(item);
-        
-        Debug.Log("Picked up item: " + item.name);
     }
     
     private void ExecuteRecipes()
     {
-        // Check each recipe to see if we have enough items
         foreach (CombineRecipe recipe in combineRecipes)
         {
             if (!recipe.enabled || recipe.resultPrefab == null)
                 continue;
             
-            if (collectedItemCounts.ContainsKey(recipe.itemName) && 
-                collectedItemCounts[recipe.itemName] >= recipe.requiredCount)
+            if (collectedItemsByType.ContainsKey(recipe.itemName))
             {
-                CombineItemsByRecipe(recipe);
-            }
-        }
-    }
-    
-    private void CombineItemsByRecipe(CombineRecipe recipe)
-    {
-        // Find all items matching this recipe among picked up items
-        List<GameObject> matchingItems = new List<GameObject>();
-        
-        foreach (GameObject item in pickedUpItems)
-        {
-            if (item != null && item.name.Contains(recipe.itemName))
-            {
-                matchingItems.Add(item);
+                List<GameObject> items = collectedItemsByType[recipe.itemName];
                 
-                if (matchingItems.Count >= recipe.requiredCount)
-                    break;
+                // Check if we have enough items for this recipe
+                while (items.Count >= recipe.requiredCount)
+                {
+                    // Get the required number of items
+                    List<GameObject> itemsToUse = new List<GameObject>();
+                    for (int i = 0; i < recipe.requiredCount; i++)
+                    {
+                        itemsToUse.Add(items[i]);
+                    }
+                    
+                    // Combine them
+                    CombineItems(itemsToUse, recipe);
+                    
+                    // Remove used items from the list
+                    for (int i = 0; i < recipe.requiredCount; i++)
+                    {
+                        items.RemoveAt(0);
+                    }
+                }
             }
         }
-        
-        // If we found enough items, combine them
-        if (matchingItems.Count >= recipe.requiredCount)
-        {
-            // Calculate average position (use player position as fallback)
-            Vector3 spawnPosition = transform.position;
-            
-            // Spawn result item
-            GameObject resultItem = Instantiate(recipe.resultPrefab, spawnPosition, Quaternion.identity);
-            
-            Debug.Log("Combined " + recipe.requiredCount + "x " + recipe.itemName + " into " + recipe.resultPrefab.name);
-        }
-    }
-    
-    private bool HasBeenCounted(GameObject item)
-    {
-        return pickedUpItems.Contains(item);
     }
     
     private IEnumerator DrawTeleportLine(Vector3 startPos, Vector3 endPos)
@@ -355,6 +271,100 @@ public class TeleportSystem : MonoBehaviour
         
         // Destroy the line object
         Destroy(lineObject);
+    }
+    
+    private void PickupAllItemsOnLine(Vector3 startPos, Vector3 endPos)
+    {
+        Vector3 lineDirection = (endPos - startPos).normalized;
+        float lineDistance = Vector3.Distance(startPos, endPos);
+        
+        List<GameObject> itemsToPickup = new List<GameObject>();
+        
+        // Method 1: Raycast along the line
+        RaycastHit2D[] raycastHits = Physics2D.RaycastAll(startPos, lineDirection, lineDistance);
+        
+        foreach (RaycastHit2D hit in raycastHits)
+        {
+            if (hit.collider != null && hit.collider.CompareTag(itemPickupTag))
+            {
+                if (!itemsToPickup.Contains(hit.collider.gameObject) && !pickedUpItems.Contains(hit.collider.gameObject))
+                {
+                    itemsToPickup.Add(hit.collider.gameObject);
+                }
+            }
+        }
+        
+        // Method 2: Circle cast along the line to catch nearby items
+        int steps = Mathf.Max(5, (int)(lineDistance / 0.5f));
+        for (int i = 0; i < steps; i++)
+        {
+            float t = (float)i / steps;
+            Vector3 checkPos = Vector3.Lerp(startPos, endPos, t);
+            
+            Collider2D[] colliders = Physics2D.OverlapCircleAll(checkPos, detectionRadius);
+            
+            foreach (Collider2D collider in colliders)
+            {
+                if (collider.CompareTag(itemPickupTag))
+                {
+                    if (!itemsToPickup.Contains(collider.gameObject) && !pickedUpItems.Contains(collider.gameObject))
+                    {
+                        itemsToPickup.Add(collider.gameObject);
+                    }
+                }
+            }
+        }
+        
+        // Pick up all remaining items found
+        foreach (GameObject item in itemsToPickup)
+        {
+            PickupItem(item);
+        }
+        
+        if (itemsToPickup.Count > 0)
+        {
+            Debug.Log("Picked up " + itemsToPickup.Count + " remaining items!");
+        }
+    }
+    
+    private void PickupItem(GameObject item)
+    {
+        if (pickedUpItems.Contains(item))
+            return;
+        
+        pickedUpItems.Add(item);
+        
+        // Destroy the item
+        Destroy(item);
+        
+        Debug.Log("Picked up item: " + item.name);
+    }
+    
+    private void CombineItems(List<GameObject> items, CombineRecipe recipe)
+    {
+        // Calculate average position
+        Vector3 spawnPosition = Vector3.zero;
+        
+        for (int i = 0; i < recipe.requiredCount && i < items.Count; i++)
+        {
+            spawnPosition += items[i].transform.position;
+        }
+        
+        spawnPosition /= recipe.requiredCount;
+        
+        // Destroy original items
+        for (int i = 0; i < recipe.requiredCount && i < items.Count; i++)
+        {
+            if (items[i] != null)
+            {
+                Destroy(items[i]);
+            }
+        }
+        
+        // Spawn result item
+        GameObject resultItem = Instantiate(recipe.resultPrefab, spawnPosition, Quaternion.identity);
+        
+        Debug.Log("Combined " + recipe.requiredCount + "x " + recipe.itemName + " into " + recipe.resultPrefab.name);
     }
     
     private void CheckEnemiesOnLine(Vector3 startPos, Vector3 endPos)
