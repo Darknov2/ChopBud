@@ -34,11 +34,19 @@ public class AutoPositionUI : MonoBehaviour
         if (canvas == null)
             canvas = FindObjectOfType<Canvas>();
         
+        if (canvas == null)
+        {
+            Debug.LogError("Canvas not found! Make sure there is a Canvas in your scene.");
+            return;
+        }
+        
         lastScreenWidth = Screen.width;
         lastScreenHeight = Screen.height;
         
         // Position all UI elements on start
         PositionAllElements();
+        
+        Debug.Log("AutoPositionUI initialized. Canvas dimensions: " + canvas.GetComponent<RectTransform>().rect.size);
     }
     
     private void Update()
@@ -81,10 +89,16 @@ public class AutoPositionUI : MonoBehaviour
     {
         RectTransform rectTransform = uiElement.element;
         
+        if (canvas == null)
+            return;
+        
         // Get canvas rect
         RectTransform canvasRect = canvas.GetComponent<RectTransform>();
         float canvasWidth = canvasRect.rect.width;
         float canvasHeight = canvasRect.rect.height;
+        
+        if (debugMode)
+            Debug.Log("Canvas size: " + canvasWidth + " x " + canvasHeight);
         
         Vector2 newPosition = Vector2.zero;
         
@@ -137,22 +151,63 @@ public class AutoPositionUI : MonoBehaviour
                 break;
         }
         
+        // Set the anchor and pivot to match the position
+        switch (uiElement.position)
+        {
+            case TextAnchor.UpperLeft:
+                rectTransform.anchorMin = new Vector2(0, 1);
+                rectTransform.anchorMax = new Vector2(0, 1);
+                rectTransform.pivot = new Vector2(0, 1);
+                break;
+            case TextAnchor.UpperCenter:
+                rectTransform.anchorMin = new Vector2(0.5f, 1);
+                rectTransform.anchorMax = new Vector2(0.5f, 1);
+                rectTransform.pivot = new Vector2(0.5f, 1);
+                break;
+            case TextAnchor.UpperRight:
+                rectTransform.anchorMin = new Vector2(1, 1);
+                rectTransform.anchorMax = new Vector2(1, 1);
+                rectTransform.pivot = new Vector2(1, 1);
+                break;
+            case TextAnchor.MiddleLeft:
+                rectTransform.anchorMin = new Vector2(0, 0.5f);
+                rectTransform.anchorMax = new Vector2(0, 0.5f);
+                rectTransform.pivot = new Vector2(0, 0.5f);
+                break;
+            case TextAnchor.MiddleCenter:
+                rectTransform.anchorMin = new Vector2(0.5f, 0.5f);
+                rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
+                rectTransform.pivot = new Vector2(0.5f, 0.5f);
+                break;
+            case TextAnchor.MiddleRight:
+                rectTransform.anchorMin = new Vector2(1, 0.5f);
+                rectTransform.anchorMax = new Vector2(1, 0.5f);
+                rectTransform.pivot = new Vector2(1, 0.5f);
+                break;
+            case TextAnchor.LowerLeft:
+                rectTransform.anchorMin = new Vector2(0, 0);
+                rectTransform.anchorMax = new Vector2(0, 0);
+                rectTransform.pivot = new Vector2(0, 0);
+                break;
+            case TextAnchor.LowerCenter:
+                rectTransform.anchorMin = new Vector2(0.5f, 0);
+                rectTransform.anchorMax = new Vector2(0.5f, 0);
+                rectTransform.pivot = new Vector2(0.5f, 0);
+                break;
+            case TextAnchor.LowerRight:
+                rectTransform.anchorMin = new Vector2(1, 0);
+                rectTransform.anchorMax = new Vector2(1, 0);
+                rectTransform.pivot = new Vector2(1, 0);
+                break;
+        }
+        
         // Apply position
         rectTransform.anchoredPosition = newPosition;
         
-        // Set size if it has a LayoutElement, otherwise set directly
-        LayoutElement layoutElement = rectTransform.GetComponent<LayoutElement>();
-        if (layoutElement != null)
-        {
-            layoutElement.preferredWidth = uiElement.size.x;
-            layoutElement.preferredHeight = uiElement.size.y;
-        }
-        else
-        {
-            rectTransform.sizeDelta = uiElement.size;
-        }
+        // Set size
+        rectTransform.sizeDelta = uiElement.size;
         
         if (debugMode)
-            Debug.Log(uiElement.elementName + " positioned at: " + newPosition);
+            Debug.Log(uiElement.elementName + " positioned at: " + newPosition + " with size: " + uiElement.size);
     }
 }
