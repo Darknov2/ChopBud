@@ -17,7 +17,8 @@ public class AutoPositionUI : MonoBehaviour
         public float paddingY = 20f;
         
         [Header("Size")]
-        public Vector2 size = new Vector2(100, 100);
+        [Tooltip("Set to 0 to auto-calculate based on children, or set custom size")]
+        public Vector2 size = Vector2.zero;
     }
     
     [SerializeField] private UIElement[] uiElements;
@@ -99,6 +100,17 @@ public class AutoPositionUI : MonoBehaviour
         
         if (debugMode)
             Debug.Log("Positioning: " + uiElement.elementName + " | Canvas size: " + canvasWidth + " x " + canvasHeight);
+        
+        // Calculate size - if 0, auto-calculate from children
+        Vector2 finalSize = uiElement.size;
+        if (finalSize == Vector2.zero)
+        {
+            finalSize = CalculateSizeFromChildren(rectTransform);
+        }
+        
+        // Ensure minimum size
+        if (finalSize.x < 1) finalSize.x = 50;
+        if (finalSize.y < 1) finalSize.y = 50;
         
         Vector2 newPosition = Vector2.zero;
         Vector2 anchorMin = Vector2.zero;
@@ -183,14 +195,54 @@ public class AutoPositionUI : MonoBehaviour
         // Apply position
         rectTransform.anchoredPosition = newPosition;
         
-        // Set size - make sure it's reasonable
-        Vector2 finalSize = uiElement.size;
-        if (finalSize.x < 1) finalSize.x = 50;
-        if (finalSize.y < 1) finalSize.y = 50;
-        
+        // Set size
         rectTransform.sizeDelta = finalSize;
         
         if (debugMode)
             Debug.Log(uiElement.elementName + " | Anchor: " + anchorMin + " | Position: " + newPosition + " | Size: " + finalSize);
+    }
+    
+    /// <summary>
+    /// Calculate the size needed to contain all child elements
+    /// </summary>
+    private Vector2 CalculateSizeFromChildren(RectTransform parent)
+    {
+        if (parent.childCount == 0)
+            return new Vector2(100, 100);
+        
+        float minX = float.MaxValue;
+        float maxX = float.MinValue;
+        float minY = float.MaxValue;
+        float maxY = float.MinValue;
+        
+        foreach (Transform child in parent)
+        {
+            RectTransform childRect = child.GetComponent<RectTransform>();
+            if (childRect == null) continue;
+            
+            Vector2 childSize = childRect.sizeDelta;
+            Vector2 childPos = childRect.anchoredPosition;
+            
+            float childLeft = childPos.x - (childSize.x * childRect.pivot.x);
+            float childRight = childPos.x + (childSize.x * (1 - childRect.pivot.x));
+            float childBottom = childPos.y - (childSize.y * childRect.pivot.y);
+            float childTop = childPos.y + (childSize.y * (1 - childRect.pivot.y));
+            
+            minX = Mathf.Min(minX, childLeft);
+            maxX = Mathf.Max(maxX, childRight);
+            minY = Mathf.Min(minY, childBottom);
+            maxY = Mathf.Max(maxY, childTop);
+        }
+        
+        float width = maxX - minX;
+        float height = maxY - minY;
+        
+        if (width < 1) width = 100;
+        if (height < 1) height = 100;
+        
+        if (debugMode)
+            Debug.Log("Auto-calculated size for " + parent.name + ": " + width + " x " + height);
+        
+        return new Vector2(width, height);
     }
 }
