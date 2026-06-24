@@ -34,45 +34,47 @@ public class TeleportSystem : MonoBehaviour
     private Camera mainCamera;
     private InputManager inputManager;
     private HashSet<GameObject> pickedUpItems = new HashSet<GameObject>();
+    private Dictionary<string, int> collectedItemCounts = new Dictionary<string, int>();
     
     private void Start()
     {
-        mainCamera = Camera.main;
+        if (canvas == null)
+            canvas = FindObjectOfType<Canvas>();
         
-        if (healthManager == null)
+        if (canvas == null)
         {
-            healthManager = GetComponent<HealthManager>();
-        }
-        
-        if (mouthAnimation == null)
-        {
-            mouthAnimation = GetComponent<MouthAnimation>();
+            Debug.LogError("Canvas not found! Make sure there is a Canvas in your scene.");
+            return;
         }
         
-        // Get InputManager instance
-        if (InputManager.instance != null)
-        {
-            inputManager = InputManager.instance;
-            // Subscribe to teleport input event
-            inputManager.OnTeleportInput += TeleportToMouse;
-        }
-        else
-        {
-            Debug.LogWarning("InputManager not found in scene! Teleport input will not work.");
-        }
+        lastScreenWidth = Screen.width;
+        lastScreenHeight = Screen.height;
         
-        if (mainCamera == null)
-        {
-            Debug.LogError("Main camera not found!");
-        }
+        // Position all UI elements on start
+        PositionAllElements();
+        
+        Debug.Log("AutoPositionUI initialized. Canvas dimensions: " + canvas.GetComponent<RectTransform>().rect.size);
     }
     
-    private void OnDestroy()
+    private void Update()
     {
-        // Unsubscribe from input event
-        if (inputManager != null)
+        // Check for orientation changes periodically
+        lastCheckTime += Time.deltaTime;
+        if (lastCheckTime >= orientationCheckInterval)
         {
-            inputManager.OnTeleportInput -= TeleportToMouse;
+            lastCheckTime = 0f;
+            
+            // Check if screen size changed
+            if (Screen.width != lastScreenWidth || Screen.height != lastScreenHeight)
+            {
+                lastScreenWidth = Screen.width;
+                lastScreenHeight = Screen.height;
+                
+                if (debugMode)
+                    Debug.Log("Screen size changed! Repositioning UI elements.");
+                
+                PositionAllElements();
+            }
         }
     }
     
@@ -88,23 +90,30 @@ public class TeleportSystem : MonoBehaviour
         // Store initial position
         Vector3 startPos = transform.position;
         
-        // Clear picked up items from last teleport
+        // Clear picked up items and collected counts from last teleport
         pickedUpItems.Clear();
+        collectedItemCounts.Clear();
         
-        // Pick up ALL items along the line FIRST
+        // STEP 1: Check recipes FIRST along the line
+        if (enableCombineOnTeleport)
+        {
+            CheckRecipesOnLine(startPos, worldPos);
+        }
+        
+        // STEP 2: Pick up ALL items along the line
         if (pickupAllItems)
         {
             PickupAllItemsOnLine(startPos, worldPos);
         }
         
-        // Check for enemies along the line
-        CheckEnemiesOnLine(startPos, worldPos);
-        
-        // Check for items to combine on the line (after picking up)
+        // STEP 3: Execute recipes based on collected items
         if (enableCombineOnTeleport)
         {
-            CombineItemsOnLine(startPos, worldPos);
+            ExecuteRecipes();
         }
+        
+        // STEP 4: Check for enemies along the line
+        CheckEnemiesOnLine(startPos, worldPos);
         
         // Teleport player to mouse position
         transform.position = new Vector3(worldPos.x, worldPos.y, transform.position.z);
@@ -121,47 +130,71 @@ public class TeleportSystem : MonoBehaviour
         Debug.Log("Teleported to: " + worldPos);
     }
     
-    private IEnumerator DrawTeleportLine(Vector3 startPos, Vector3 endPos)
+    private void CheckRecipesOnLine(Vector3 startPos, Vector3 endPos)
     {
-        // Create a new GameObject for the line
-        GameObject lineObject = new GameObject("TeleportLine");
-        LineRenderer lineRenderer = lineObject.AddComponent<LineRenderer>();
+        Vector3 lineDirection = (endPos - startPos).normalized;
+        float lineDistance = Vector3.Distance(startPos, endPos);
         
-        // Setup LineRenderer
-        lineRenderer.positionCount = 2;
-        lineRenderer.SetPosition(0, startPos);
-        lineRenderer.SetPosition(1, endPos);
-        lineRenderer.startWidth = lineWidth;
-        lineRenderer.endWidth = lineWidth;
-        
-        // Create material for the line
-        Material lineMaterial = new Material(Shader.Find("Sprites/Default"));
-        lineRenderer.material = lineMaterial;
-        
-        // Set initial color
-        Color startColor = lineColor;
-        lineRenderer.startColor = startColor;
-        lineRenderer.endColor = startColor;
-        
-        // Fade out over time
-        float elapsedTime = 0f;
-        while (elapsedTime < lineFadeDuration)
+        // Initialize counters for each recipe item type
+        foreach (CombineRecipe recipe in combineRecipes)
         {
-            elapsedTime += Time.deltaTime;
-            float fadeProgress = elapsedTime / lineFadeDuration;
-            
-            // Lerp the alpha from 1 to 0
-            Color fadeColor = startColor;
-            fadeColor.a = Mathf.Lerp(1f, 0f, fadeProgress);
-            
-            lineRenderer.startColor = fadeColor;
-            lineRenderer.endColor = fadeColor;
-            
-            yield return null;
+            if (!collectedItemCounts.ContainsKey(recipe.itemName))
+            {
+                collectedItemCounts[recipe.itemName] = 0;
+            }
         }
         
-        // Destroy the line object
-        Destroy(lineObject);
+        // Method 1: Raycast along the line
+        RaycastHit2D[] raycastHits = Physics2D.RaycastAll(startPos, lineDirection, lineDistance);
+        
+        foreach (RaycastHit2D hit in raycastHits)
+        {
+            if (hit.collider != null && hit.collider.CompareTag(itemPickupTag))
+            {
+                // Check if this item matches any recipe
+                foreach (CombineRecipe recipe in combineRecipes)
+                {
+                    if (hit.collider.gameObject.name.Contains(recipe.itemName))
+                    {
+                        collectedItemCounts[recipe.itemName]++;
+                        Debug.Log("Recipe check: Found " + recipe.itemName + " (Total: " + collectedItemCounts[recipe.itemName] + ")");
+                        break;
+                    }
+                }
+            }
+        }
+        
+        // Method 2: Circle cast along the line to catch nearby items
+        int steps = Mathf.Max(5, (int)(lineDistance / 0.5f));
+        for (int i = 0; i < steps; i++)
+        {
+            float t = (float)i / steps;
+            Vector3 checkPos = Vector3.Lerp(startPos, endPos, t);
+            
+            Collider2D[] colliders = Physics2D.OverlapCircleAll(checkPos, detectionRadius);
+            
+            foreach (Collider2D collider in colliders)
+            {
+                if (collider.CompareTag(itemPickupTag))
+                {
+                    // Check if this item matches any recipe
+                    foreach (CombineRecipe recipe in combineRecipes)
+                    {
+                        if (collider.gameObject.name.Contains(recipe.itemName))
+                        {
+                            if (collectedItemCounts[recipe.itemName] == 0 || !HasBeenCounted(collider.gameObject))
+                            {
+                                collectedItemCounts[recipe.itemName]++;
+                                Debug.Log("Recipe check (circle): Found " + recipe.itemName + " (Total: " + collectedItemCounts[recipe.itemName] + ")");
+                            }
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        
+        Debug.Log("Recipe check complete. Item counts: " + string.Join(", ", collectedItemCounts));
     }
     
     private void PickupAllItemsOnLine(Vector3 startPos, Vector3 endPos)
@@ -231,89 +264,97 @@ public class TeleportSystem : MonoBehaviour
         Debug.Log("Picked up item: " + item.name);
     }
     
-    private void CombineItemsOnLine(Vector3 startPos, Vector3 endPos)
+    private void ExecuteRecipes()
     {
-        if (combineRecipes.Count == 0)
-            return;
-        
-        Vector3 lineDirection = (endPos - startPos).normalized;
-        float lineDistance = Vector3.Distance(startPos, endPos);
-        
-        // Check each recipe
+        // Check each recipe to see if we have enough items
         foreach (CombineRecipe recipe in combineRecipes)
         {
             if (!recipe.enabled || recipe.resultPrefab == null)
                 continue;
             
-            // Find all items matching this recipe on the line
-            List<GameObject> matchingItems = new List<GameObject>();
-            
-            // Method 1: Raycast along the line
-            RaycastHit2D[] raycastHits = Physics2D.RaycastAll(startPos, lineDirection, lineDistance);
-            
-            foreach (RaycastHit2D hit in raycastHits)
+            if (collectedItemCounts.ContainsKey(recipe.itemName) && 
+                collectedItemCounts[recipe.itemName] >= recipe.requiredCount)
             {
-                if (hit.collider != null && hit.collider.gameObject.name.Contains(recipe.itemName))
-                {
-                    if (!matchingItems.Contains(hit.collider.gameObject) && !pickedUpItems.Contains(hit.collider.gameObject))
-                    {
-                        matchingItems.Add(hit.collider.gameObject);
-                    }
-                }
-            }
-            
-            // Method 2: Circle cast along the line to catch nearby items
-            int steps = Mathf.Max(5, (int)(lineDistance / 0.5f));
-            for (int i = 0; i < steps; i++)
-            {
-                float t = (float)i / steps;
-                Vector3 checkPos = Vector3.Lerp(startPos, endPos, t);
-                
-                Collider2D[] colliders = Physics2D.OverlapCircleAll(checkPos, detectionRadius);
-                
-                foreach (Collider2D collider in colliders)
-                {
-                    if (collider.gameObject.name.Contains(recipe.itemName))
-                    {
-                        if (!matchingItems.Contains(collider.gameObject) && !pickedUpItems.Contains(collider.gameObject))
-                        {
-                            matchingItems.Add(collider.gameObject);
-                        }
-                    }
-                }
-            }
-            
-            // Check if we have enough items to combine
-            if (matchingItems.Count >= recipe.requiredCount)
-            {
-                CombineItems(matchingItems, recipe);
+                CombineItemsByRecipe(recipe);
             }
         }
     }
     
-    private void CombineItems(List<GameObject> items, CombineRecipe recipe)
+    private void CombineItemsByRecipe(CombineRecipe recipe)
     {
-        // Calculate average position
-        Vector3 spawnPosition = Vector3.zero;
+        // Find all items matching this recipe among picked up items
+        List<GameObject> matchingItems = new List<GameObject>();
         
-        for (int i = 0; i < recipe.requiredCount && i < items.Count; i++)
+        foreach (GameObject item in pickedUpItems)
         {
-            spawnPosition += items[i].transform.position;
+            if (item != null && item.name.Contains(recipe.itemName))
+            {
+                matchingItems.Add(item);
+                
+                if (matchingItems.Count >= recipe.requiredCount)
+                    break;
+            }
         }
         
-        spawnPosition /= recipe.requiredCount;
-        
-        // Destroy original items
-        for (int i = 0; i < recipe.requiredCount && i < items.Count; i++)
+        // If we found enough items, combine them
+        if (matchingItems.Count >= recipe.requiredCount)
         {
-            Destroy(items[i]);
-            pickedUpItems.Add(items[i]);
+            // Calculate average position (use player position as fallback)
+            Vector3 spawnPosition = transform.position;
+            
+            // Spawn result item
+            GameObject resultItem = Instantiate(recipe.resultPrefab, spawnPosition, Quaternion.identity);
+            
+            Debug.Log("Combined " + recipe.requiredCount + "x " + recipe.itemName + " into " + recipe.resultPrefab.name);
+        }
+    }
+    
+    private bool HasBeenCounted(GameObject item)
+    {
+        return pickedUpItems.Contains(item);
+    }
+    
+    private IEnumerator DrawTeleportLine(Vector3 startPos, Vector3 endPos)
+    {
+        // Create a new GameObject for the line
+        GameObject lineObject = new GameObject("TeleportLine");
+        LineRenderer lineRenderer = lineObject.AddComponent<LineRenderer>();
+        
+        // Setup LineRenderer
+        lineRenderer.positionCount = 2;
+        lineRenderer.SetPosition(0, startPos);
+        lineRenderer.SetPosition(1, endPos);
+        lineRenderer.startWidth = lineWidth;
+        lineRenderer.endWidth = lineWidth;
+        
+        // Create material for the line
+        Material lineMaterial = new Material(Shader.Find("Sprites/Default"));
+        lineRenderer.material = lineMaterial;
+        
+        // Set initial color
+        Color startColor = lineColor;
+        lineRenderer.startColor = startColor;
+        lineRenderer.endColor = startColor;
+        
+        // Fade out over time
+        float elapsedTime = 0f;
+        while (elapsedTime < lineFadeDuration)
+        {
+            elapsedTime += Time.deltaTime;
+            float fadeProgress = elapsedTime / lineFadeDuration;
+            
+            // Lerp the alpha from 1 to 0
+            Color fadeColor = startColor;
+            fadeColor.a = Mathf.Lerp(1f, 0f, fadeProgress);
+            
+            lineRenderer.startColor = fadeColor;
+            lineRenderer.endColor = fadeColor;
+            
+            yield return null;
         }
         
-        // Spawn result item
-        GameObject resultItem = Instantiate(recipe.resultPrefab, spawnPosition, Quaternion.identity);
-        
-        Debug.Log("Combined " + recipe.requiredCount + "x " + recipe.itemName + " into " + recipe.resultPrefab.name);
+        // Destroy the line object
+        Destroy(lineObject);
     }
     
     private void CheckEnemiesOnLine(Vector3 startPos, Vector3 endPos)
