@@ -22,7 +22,7 @@ public class AutoPositionUI : MonoBehaviour
     
     [SerializeField] private UIElement[] uiElements;
     [SerializeField] private Canvas canvas;
-    [SerializeField] private bool debugMode = false;
+    [SerializeField] private bool debugMode = true;
     [SerializeField] private float orientationCheckInterval = 0.5f;
     
     private float lastCheckTime = 0f;
@@ -98,116 +98,99 @@ public class AutoPositionUI : MonoBehaviour
         float canvasHeight = canvasRect.rect.height;
         
         if (debugMode)
-            Debug.Log("Canvas size: " + canvasWidth + " x " + canvasHeight);
+            Debug.Log("Positioning: " + uiElement.elementName + " | Canvas size: " + canvasWidth + " x " + canvasHeight);
         
         Vector2 newPosition = Vector2.zero;
+        Vector2 anchorMin = Vector2.zero;
+        Vector2 anchorMax = Vector2.zero;
+        Vector2 pivot = Vector2.zero;
         
-        // Calculate position based on anchor
+        // Calculate position, anchor, and pivot based on direction
         switch (uiElement.position)
         {
             // Top row
             case TextAnchor.UpperLeft:
-                newPosition = new Vector2(-canvasWidth / 2 + uiElement.paddingX + uiElement.size.x / 2, 
-                                         canvasHeight / 2 - uiElement.paddingY - uiElement.size.y / 2);
+                anchorMin = new Vector2(0, 1);
+                anchorMax = new Vector2(0, 1);
+                pivot = new Vector2(0, 1);
+                newPosition = new Vector2(uiElement.paddingX, -uiElement.paddingY);
                 break;
             
             case TextAnchor.UpperCenter:
-                newPosition = new Vector2(0, 
-                                         canvasHeight / 2 - uiElement.paddingY - uiElement.size.y / 2);
+                anchorMin = new Vector2(0.5f, 1);
+                anchorMax = new Vector2(0.5f, 1);
+                pivot = new Vector2(0.5f, 1);
+                newPosition = new Vector2(0, -uiElement.paddingY);
                 break;
             
             case TextAnchor.UpperRight:
-                newPosition = new Vector2(canvasWidth / 2 - uiElement.paddingX - uiElement.size.x / 2, 
-                                         canvasHeight / 2 - uiElement.paddingY - uiElement.size.y / 2);
+                anchorMin = new Vector2(1, 1);
+                anchorMax = new Vector2(1, 1);
+                pivot = new Vector2(1, 1);
+                newPosition = new Vector2(-uiElement.paddingX, -uiElement.paddingY);
                 break;
             
             // Middle row
             case TextAnchor.MiddleLeft:
-                newPosition = new Vector2(-canvasWidth / 2 + uiElement.paddingX + uiElement.size.x / 2, 0);
+                anchorMin = new Vector2(0, 0.5f);
+                anchorMax = new Vector2(0, 0.5f);
+                pivot = new Vector2(0, 0.5f);
+                newPosition = new Vector2(uiElement.paddingX, 0);
                 break;
             
             case TextAnchor.MiddleCenter:
+                anchorMin = new Vector2(0.5f, 0.5f);
+                anchorMax = new Vector2(0.5f, 0.5f);
+                pivot = new Vector2(0.5f, 0.5f);
                 newPosition = Vector2.zero;
                 break;
             
             case TextAnchor.MiddleRight:
-                newPosition = new Vector2(canvasWidth / 2 - uiElement.paddingX - uiElement.size.x / 2, 0);
+                anchorMin = new Vector2(1, 0.5f);
+                anchorMax = new Vector2(1, 0.5f);
+                pivot = new Vector2(1, 0.5f);
+                newPosition = new Vector2(-uiElement.paddingX, 0);
                 break;
             
             // Bottom row
             case TextAnchor.LowerLeft:
-                newPosition = new Vector2(-canvasWidth / 2 + uiElement.paddingX + uiElement.size.x / 2, 
-                                         -canvasHeight / 2 + uiElement.paddingY + uiElement.size.y / 2);
+                anchorMin = new Vector2(0, 0);
+                anchorMax = new Vector2(0, 0);
+                pivot = new Vector2(0, 0);
+                newPosition = new Vector2(uiElement.paddingX, uiElement.paddingY);
                 break;
             
             case TextAnchor.LowerCenter:
-                newPosition = new Vector2(0, 
-                                         -canvasHeight / 2 + uiElement.paddingY + uiElement.size.y / 2);
+                anchorMin = new Vector2(0.5f, 0);
+                anchorMax = new Vector2(0.5f, 0);
+                pivot = new Vector2(0.5f, 0);
+                newPosition = new Vector2(0, uiElement.paddingY);
                 break;
             
             case TextAnchor.LowerRight:
-                newPosition = new Vector2(canvasWidth / 2 - uiElement.paddingX - uiElement.size.x / 2, 
-                                         -canvasHeight / 2 + uiElement.paddingY + uiElement.size.y / 2);
+                anchorMin = new Vector2(1, 0);
+                anchorMax = new Vector2(1, 0);
+                pivot = new Vector2(1, 0);
+                newPosition = new Vector2(-uiElement.paddingX, uiElement.paddingY);
                 break;
         }
         
-        // Set the anchor and pivot to match the position
-        switch (uiElement.position)
-        {
-            case TextAnchor.UpperLeft:
-                rectTransform.anchorMin = new Vector2(0, 1);
-                rectTransform.anchorMax = new Vector2(0, 1);
-                rectTransform.pivot = new Vector2(0, 1);
-                break;
-            case TextAnchor.UpperCenter:
-                rectTransform.anchorMin = new Vector2(0.5f, 1);
-                rectTransform.anchorMax = new Vector2(0.5f, 1);
-                rectTransform.pivot = new Vector2(0.5f, 1);
-                break;
-            case TextAnchor.UpperRight:
-                rectTransform.anchorMin = new Vector2(1, 1);
-                rectTransform.anchorMax = new Vector2(1, 1);
-                rectTransform.pivot = new Vector2(1, 1);
-                break;
-            case TextAnchor.MiddleLeft:
-                rectTransform.anchorMin = new Vector2(0, 0.5f);
-                rectTransform.anchorMax = new Vector2(0, 0.5f);
-                rectTransform.pivot = new Vector2(0, 0.5f);
-                break;
-            case TextAnchor.MiddleCenter:
-                rectTransform.anchorMin = new Vector2(0.5f, 0.5f);
-                rectTransform.anchorMax = new Vector2(0.5f, 0.5f);
-                rectTransform.pivot = new Vector2(0.5f, 0.5f);
-                break;
-            case TextAnchor.MiddleRight:
-                rectTransform.anchorMin = new Vector2(1, 0.5f);
-                rectTransform.anchorMax = new Vector2(1, 0.5f);
-                rectTransform.pivot = new Vector2(1, 0.5f);
-                break;
-            case TextAnchor.LowerLeft:
-                rectTransform.anchorMin = new Vector2(0, 0);
-                rectTransform.anchorMax = new Vector2(0, 0);
-                rectTransform.pivot = new Vector2(0, 0);
-                break;
-            case TextAnchor.LowerCenter:
-                rectTransform.anchorMin = new Vector2(0.5f, 0);
-                rectTransform.anchorMax = new Vector2(0.5f, 0);
-                rectTransform.pivot = new Vector2(0.5f, 0);
-                break;
-            case TextAnchor.LowerRight:
-                rectTransform.anchorMin = new Vector2(1, 0);
-                rectTransform.anchorMax = new Vector2(1, 0);
-                rectTransform.pivot = new Vector2(1, 0);
-                break;
-        }
+        // Set anchor and pivot
+        rectTransform.anchorMin = anchorMin;
+        rectTransform.anchorMax = anchorMax;
+        rectTransform.pivot = pivot;
         
         // Apply position
         rectTransform.anchoredPosition = newPosition;
         
-        // Set size
-        rectTransform.sizeDelta = uiElement.size;
+        // Set size - make sure it's reasonable
+        Vector2 finalSize = uiElement.size;
+        if (finalSize.x < 1) finalSize.x = 50;
+        if (finalSize.y < 1) finalSize.y = 50;
+        
+        rectTransform.sizeDelta = finalSize;
         
         if (debugMode)
-            Debug.Log(uiElement.elementName + " positioned at: " + newPosition + " with size: " + uiElement.size);
+            Debug.Log(uiElement.elementName + " | Anchor: " + anchorMin + " | Position: " + newPosition + " | Size: " + finalSize);
     }
 }
