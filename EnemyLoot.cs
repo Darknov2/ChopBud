@@ -1,4 +1,5 @@
 using UnityEngine;
+using System.Collections;
 
 public class EnemyLoot : MonoBehaviour
 {
@@ -11,12 +12,7 @@ public class EnemyLoot : MonoBehaviour
     [SerializeField] private float dropForce = 8f;
     [SerializeField] private float scatterRadius = 3f;
     [SerializeField] private float upwardForce = 3f; // Initial upward velocity
-    [SerializeField] private float gravityScale = 1f; // How heavy the items feel
-    [SerializeField] private float angularVelocity = 180f; // Spin effect
-    
-    [Header("Drop Animation")]
     [SerializeField] private float pickupDelay = 0.2f; // Delay before items can be picked up
-    [SerializeField] private AnimationCurve dropFadeCurve = AnimationCurve.EaseInOut(0, 1, 1, 1);
     
     public void DropLoot()
     {
@@ -43,8 +39,8 @@ public class EnemyLoot : MonoBehaviour
                 
                 if (rb != null)
                 {
-                    // Set gravity scale for natural falling motion
-                    rb.gravityScale = gravityScale;
+                    // Make sure rigidbody is not kinematic
+                    rb.isKinematic = false;
                     
                     // Calculate velocity: outward scatter + upward force
                     Vector2 scatterVelocity = scatterDirection * dropForce;
@@ -53,16 +49,21 @@ public class EnemyLoot : MonoBehaviour
                     rb.velocity = scatterVelocity + upwardVelocity;
                     
                     // Add rotation for spinning effect
-                    rb.angularVelocity = Random.Range(-angularVelocity, angularVelocity);
+                    rb.angularVelocity = Random.Range(-360f, 360f);
+                    
+                    Debug.Log("Applied physics to dropped item: velocity = " + rb.velocity);
+                }
+                else
+                {
+                    Debug.LogWarning("Dropped item has no Rigidbody2D!");
                 }
                 
-                // Disable pickup temporarily
+                // Disable pickup temporarily, then enable after delay
                 ItemPickup itemPickup = droppedItem.GetComponent<ItemPickup>();
                 if (itemPickup != null)
                 {
                     itemPickup.SetPickupEnabled(false);
-                    // Enable pickup after delay
-                    Invoke(nameof(EnablePickup), pickupDelay);
+                    StartCoroutine(EnablePickupAfterDelay(itemPickup));
                 }
                 
                 Debug.Log("Dropped " + lootItemName + " at position: " + dropPosition + " with physics movement");
@@ -75,9 +76,15 @@ public class EnemyLoot : MonoBehaviour
         }
     }
     
-    private void EnablePickup()
+    private IEnumerator EnablePickupAfterDelay(ItemPickup itemPickup)
     {
-        // This will be called on a delay to enable pickup
+        yield return new WaitForSeconds(pickupDelay);
+        
+        if (itemPickup != null)
+        {
+            itemPickup.SetPickupEnabled(true);
+            Debug.Log("Item pickup enabled");
+        }
     }
     
     public string GetLootName()
