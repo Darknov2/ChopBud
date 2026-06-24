@@ -9,9 +9,6 @@ public class HealthManager : MonoBehaviour
     [SerializeField] private Sprite fullHeartSprite;
     [SerializeField] private Sprite emptyHeartSprite;
     
-    [Header("Death Settings")]
-    [SerializeField] private TopDownPlayerMovement playerMovement;
-    
     private int currentHealth;
     private bool isDead = false;
     
@@ -19,11 +16,6 @@ public class HealthManager : MonoBehaviour
     {
         currentHealth = maxHealth;
         UpdateHeartDisplay();
-        
-        if (playerMovement == null)
-        {
-            playerMovement = GetComponent<TopDownPlayerMovement>();
-        }
     }
     
     public void TakeDamage(int damage = 1)
@@ -81,17 +73,19 @@ public class HealthManager : MonoBehaviour
         isDead = true;
         Debug.Log("Player Died!");
         
-        // Disable player movement
-        if (playerMovement != null)
+        // Disable TeleportSystem to prevent further teleporting
+        TeleportSystem teleportSystem = GetComponent<TeleportSystem>();
+        if (teleportSystem != null)
         {
-            playerMovement.enabled = false;
+            teleportSystem.enabled = false;
         }
         
-        // Disable player rigidbody velocity
+        // Stop player movement by freezing rigidbody
         Rigidbody2D rb = GetComponent<Rigidbody2D>();
         if (rb != null)
         {
             rb.velocity = Vector2.zero;
+            rb.isKinematic = true;
         }
         
         // Add death logic here (restart level, game over screen, etc.)
