@@ -1,21 +1,38 @@
 using UnityEngine;
+using System.Collections;
 using System.Collections.Generic;
+using TMPro;
+
+[System.Serializable]
+public class Wave
+{
+    public string waveName = "Wave 1";
+    public int maxEnemies = 10;
+    public List<GameObject> enemyPrefabs = new List<GameObject>();
+    public float spawnRate = 2f; // Seconds between spawns
+}
 
 public class EnemySpawner : MonoBehaviour
 {
     [Header("Spawner Settings")]
     [SerializeField] private Transform playerTransform;
     [SerializeField] private float spawnRadius = 10f;
-    [SerializeField] private float spawnRate = 2f; // Seconds between spawns
-    [SerializeField] private int maxEnemies = 10;
     [SerializeField] private bool autoStart = true;
     
-    [Header("Enemy Prefabs")]
-    [SerializeField] private List<GameObject> enemyPrefabs = new List<GameObject>();
+    [Header("Wave Settings")]
+    [SerializeField] private List<Wave> waves = new List<Wave>();
+    [SerializeField] private float breakBetweenWaves = 15f; // 15 seconds between waves
+    
+    [Header("UI")]
+    [SerializeField] private TextMeshProUGUI waveText; // Display wave start message
     
     private float spawnTimer = 0f;
     private int currentEnemyCount = 0;
+    private int currentWaveIndex = 0;
     private bool isSpawning = false;
+    private bool isWaveActive = false;
+    private bool isBetweenWaves = false;
+    private float breakTimer = 0f;
     
     private void Start()
     {
@@ -34,15 +51,15 @@ public class EnemySpawner : MonoBehaviour
             }
         }
         
-        if (enemyPrefabs.Count == 0)
+        if (waves.Count == 0)
         {
-            Debug.LogWarning("EnemySpawner: No enemy prefabs assigned!");
+            Debug.LogWarning("EnemySpawner: No waves configured!");
             return;
         }
         
         if (autoStart)
         {
-            StartSpawning();
+            StartWaveSystem();
         }
     }
     
@@ -51,20 +68,95 @@ public class EnemySpawner : MonoBehaviour
         if (!isSpawning || playerTransform == null)
             return;
         
-        spawnTimer += Time.deltaTime;
-        
-        if (spawnTimer >= spawnRate)
+        // Handle wave break countdown
+        if (isBetweenWaves)
         {
-            if (currentEnemyCount < maxEnemies)
+            breakTimer -= Time.deltaTime;
+            
+            if (waveText != null)
             {
-                SpawnEnemy();
+                waveText.text = "Next Wave in: " + Mathf.Max(0, Mathf.Ceil(breakTimer)).ToString() + "s";
             }
-            spawnTimer = 0f;
+            
+            if (breakTimer <= 0f)
+            {
+                isBetweenWaves = false;
+                StartNextWave();
+            }
+            return;
+        }
+        
+        // Handle spawning during wave
+        if (isWaveActive && currentWaveIndex < waves.Count)
+        {
+            Wave currentWave = waves[currentWaveIndex];
+            
+            spawnTimer += Time.deltaTime;
+            
+            if (spawnTimer >= currentWave.spawnRate)
+            {
+                if (currentEnemyCount < currentWave.maxEnemies)
+                {
+                    SpawnEnemy(currentWave);
+                }
+                spawnTimer = 0f;
+            }
+            
+            // Check if wave is complete (all enemies spawned and defeated)
+            if (currentEnemyCount == 0 && spawnTimer > 1f) // Small delay to ensure all enemies are spawned first
+            {
+                if (currentWaveIndex < waves.Count - 1)
+                {
+                    EndWave();
+                }
+                else
+                {
+                    AllWavesComplete();
+                }
+            }
         }
     }
     
-    private void SpawnEnemy()
+    private void StartWaveSystem()
     {
+        isSpawning = true;
+        currentWaveIndex = 0;
+        StartNextWave();
+        Debug.Log("Wave system started!");
+    }
+    
+    private void StartNextWave()
+    {
+        if (currentWaveIndex >= waves.Count)
+        {
+            AllWavesComplete();
+            return;
+        }
+        
+        currentEnemyCount = 0;
+        spawnTimer = 0f;
+        isWaveActive = true;
+        
+        Wave currentWave = waves[currentWaveIndex];
+        
+        // Display wave start message
+        if (waveText != null)
+        {
+            waveText.text = currentWave.waveName + " Started!";
+            StartCoroutine(FadeWaveText());
+        }
+        
+        Debug.Log(currentWave.waveName + " started! Max enemies: " + currentWave.maxEnemies);
+    }
+    
+    private void SpawnEnemy(Wave wave)
+    {
+        if (wave.enemyPrefabs.Count == 0)
+        {
+            Debug.LogWarning("Wave " + (currentWaveIndex + 1) + " has no enemy prefabs assigned!");
+            return;
+        }
+        
         // Get random position around player
         float randomAngle = Random.Range(0f, 360f);
         float randomDistance = Random.Range(spawnRadius * 0.5f, spawnRadius);
@@ -76,27 +168,49 @@ public class EnemySpawner : MonoBehaviour
         
         Vector3 spawnPosition = playerTransform.position + (Vector3)spawnOffset;
         
-        // Get random enemy prefab
-        GameObject randomEnemyPrefab = enemyPrefabs[Random.Range(0, enemyPrefabs.Count)];
+        // Get random enemy prefab from wave
+        GameObject randomEnemyPrefab = wave.enemyPrefabs[Random.Range(0, wave.enemyPrefabs.Count)];
         
         // Instantiate enemy
         GameObject newEnemy = Instantiate(randomEnemyPrefab, spawnPosition, Quaternion.identity);
         
         currentEnemyCount++;
         
-        Debug.Log("Enemy spawned at: " + spawnPosition + " (Total: " + currentEnemyCount + ")");
+        Debug.Log("Enemy spawned at: " + spawnPosition + " (Total: " + currentEnemyCount + "/" + wave.maxEnemies + ")");
     }
     
-    public void StartSpawning()
+    private void EndWave()
     {
-        isSpawning = true;
-        Debug.Log("Enemy spawner started!");
+        isWaveActive = false;
+        currentWaveIndex++;
+        isBetweenWaves = true;
+        breakTimer = breakBetweenWaves;
+        
+        Debug.Log("Wave ended! Starting " + breakBetweenWaves + "s break before next wave...");
     }
     
-    public void StopSpawning()
+    private void AllWavesComplete()
     {
         isSpawning = false;
-        Debug.Log("Enemy spawner stopped!");
+        isWaveActive = false;
+        
+        if (waveText != null)
+        {
+            waveText.text = "All Waves Complete!";
+        }
+        
+        Debug.Log("All waves completed!");
+    }
+    
+    private IEnumerator FadeWaveText()
+    {
+        // Display wave text for 3 seconds then fade
+        yield return new WaitForSeconds(3f);
+        
+        if (waveText != null && !isBetweenWaves)
+        {
+            waveText.text = "";
+        }
     }
     
     public void OnEnemyDestroyed()
@@ -108,19 +222,22 @@ public class EnemySpawner : MonoBehaviour
         }
     }
     
+    public void StopSpawning()
+    {
+        isSpawning = false;
+        isWaveActive = false;
+        isBetweenWaves = false;
+        Debug.Log("Wave system stopped!");
+    }
+    
     public int GetCurrentEnemyCount()
     {
         return currentEnemyCount;
     }
     
-    public void SetMaxEnemies(int max)
+    public int GetCurrentWaveIndex()
     {
-        maxEnemies = max;
-    }
-    
-    public void SetSpawnRate(float rate)
-    {
-        spawnRate = rate;
+        return currentWaveIndex + 1; // Return 1-indexed wave number
     }
     
     #if UNITY_EDITOR
