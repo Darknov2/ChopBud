@@ -29,9 +29,21 @@ public class ItemPickup : MonoBehaviour
         }
         
         // Create AudioSource if playSound is enabled
+        InitializeAudioSource();
+    }
+    
+    private void InitializeAudioSource()
+    {
         if (playSound && pickupSound != null)
         {
-            audioSource = gameObject.AddComponent<AudioSource>();
+            audioSource = GetComponent<AudioSource>();
+            
+            // Create AudioSource if it doesn't exist
+            if (audioSource == null)
+            {
+                audioSource = gameObject.AddComponent<AudioSource>();
+            }
+            
             audioSource.clip = pickupSound;
             audioSource.volume = soundVolume;
             audioSource.playOnAwake = false;
@@ -72,10 +84,7 @@ public class ItemPickup : MonoBehaviour
         }
         
         // Play pickup sound
-        if (playSound && audioSource != null && pickupSound != null)
-        {
-            audioSource.PlayOneShot(pickupSound, soundVolume);
-        }
+        PlayPickupSound();
         
         // Add your inventory logic here
         // Example: player.GetComponent<Inventory>().AddItem(this);
@@ -88,6 +97,26 @@ public class ItemPickup : MonoBehaviour
         else
         {
             Destroy(gameObject);
+        }
+    }
+    
+    public void PlayPickupSound()
+    {
+        // Ensure AudioSource is initialized
+        if (audioSource == null)
+        {
+            InitializeAudioSource();
+        }
+        
+        // Play pickup sound
+        if (playSound && audioSource != null && pickupSound != null)
+        {
+            audioSource.PlayOneShot(pickupSound, soundVolume);
+            Debug.Log("Playing pickup sound: " + pickupSound.name);
+        }
+        else if (pickupSound == null)
+        {
+            Debug.LogWarning("ItemPickup: No pickup sound assigned!");
         }
     }
     
