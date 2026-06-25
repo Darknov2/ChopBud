@@ -145,62 +145,84 @@ public class HeartItem : MonoBehaviour
             return;
         }
         
+        Debug.Log("========== HEART PICKUP DEBUG START ==========");
         Debug.Log("HeartItem: PickupItem called on player: " + playerObj.name);
         
         canPickup = false;
         isPulling = false;
         
-        // Get player health manager - search recursively through all components
+        // Get player health manager
         HealthManager healthManager = playerObj.GetComponent<HealthManager>();
         
-        Debug.Log("HeartItem: HealthManager found: " + (healthManager != null ? "YES" : "NO"));
+        Debug.Log("Step 1 - HealthManager found: " + (healthManager != null ? "YES ✓" : "NO ✗"));
         
         if (healthManager == null)
         {
-            Debug.LogError("HeartItem: HealthManager is NULL on player " + playerObj.name + "! Searching all components...");
-            
-            // Debug: list all components
+            Debug.LogError("FAILED: HealthManager is NULL!");
             Component[] components = playerObj.GetComponents<Component>();
             foreach (Component comp in components)
             {
-                Debug.Log("  - Component found: " + comp.GetType().Name);
+                Debug.Log("  - Component: " + comp.GetType().Name);
             }
-            
-            Debug.LogWarning("HeartItem: HealthManager not found on player!");
             return;
         }
         
-        // Check if player is already at full health
-        int currentHealth = healthManager.GetCurrentHealth();
+        // Get health values BEFORE healing
+        int currentHealthBefore = healthManager.GetCurrentHealth();
         int maxHealth = healthManager.GetMaxHealth();
+        bool isDead = healthManager.IsDead();
         
-        Debug.Log("HeartItem: Current Health: " + currentHealth + " / Max Health: " + maxHealth);
+        Debug.Log("Step 2 - Health Status BEFORE:");
+        Debug.Log("  - Current Health: " + currentHealthBefore);
+        Debug.Log("  - Max Health: " + maxHealth);
+        Debug.Log("  - Is Dead: " + isDead);
         
-        if (currentHealth >= maxHealth)
+        // Check if already at full health
+        if (currentHealthBefore >= maxHealth)
         {
-            Debug.Log("Player health is already full! Heart not used.");
-            canPickup = true; // Re-enable pickup
+            Debug.Log("SKIPPED: Player already at full health!");
+            canPickup = true;
             return;
         }
         
-        // Heal player
-        Debug.Log("HeartItem: Calling Heal(" + healAmount + ")");
+        // Check if player is dead
+        if (isDead)
+        {
+            Debug.Log("SKIPPED: Player is dead!");
+            canPickup = true;
+            return;
+        }
+        
+        // HEALING
+        Debug.Log("Step 3 - Calling Heal(" + healAmount + ")...");
         healthManager.Heal(healAmount);
         
-        int newHealth = healthManager.GetCurrentHealth();
-        Debug.Log("Player healed by: " + healAmount + " HP. New health: " + newHealth);
+        // Get health values AFTER healing
+        int currentHealthAfter = healthManager.GetCurrentHealth();
+        Debug.Log("Step 4 - Health Status AFTER:");
+        Debug.Log("  - Current Health: " + currentHealthAfter);
+        Debug.Log("  - Health increased by: " + (currentHealthAfter - currentHealthBefore));
         
-        // Play pickup mouth animation
+        if (currentHealthAfter > currentHealthBefore)
+        {
+            Debug.Log("SUCCESS: Player healed! ✓");
+        }
+        else
+        {
+            Debug.LogError("FAILED: Health did not increase!");
+        }
+        
+        // Play animations and sounds
         MouthAnimation mouthAnimation = playerObj.GetComponent<MouthAnimation>();
         if (mouthAnimation != null)
         {
             mouthAnimation.PlayPickupMouthAnimation();
+            Debug.Log("Mouth animation played");
         }
         
-        // Play pickup sound
         PlayPickupSound();
         
-        // Destroy the item after sound finishes (if sound is playing)
+        // Destroy item
         if (destroyAfterPickup)
         {
             if (playSound && pickupSound != null)
@@ -212,27 +234,27 @@ public class HeartItem : MonoBehaviour
                 Destroy(gameObject);
             }
         }
+        
+        Debug.Log("========== HEART PICKUP DEBUG END ==========");
     }
     
     public void PlayPickupSound()
     {
-        // Ensure AudioSource is initialized
         if (audioSource == null)
         {
             InitializeAudioSource();
         }
         
-        // Play pickup sound
         if (playSound && audioSource != null && pickupSound != null)
         {
             audioSource.PlayOneShot(pickupSound, soundVolume);
-            Debug.Log("Playing heart pickup sound: " + pickupSound.name);
+            Debug.Log("Playing heart pickup sound");
         }
     }
     
     public void SetPickupEnabled(bool enabled)
     {
         canPickup = enabled;
-        Debug.Log("HeartItem: Pickup " + (enabled ? "enabled" : "disabled"));
+        Debug.Log("HeartItem: Pickup " + (enabled ? "ENABLED ✓" : "DISABLED ✗"));
     }
 }
