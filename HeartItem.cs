@@ -123,7 +123,7 @@ public class HeartItem : MonoBehaviour
     {
         if (canPickup && collision.CompareTag("Player"))
         {
-            Debug.Log("HeartItem: OnTriggerEnter2D with player!");
+            Debug.Log("HeartItem: OnTriggerEnter2D with player! " + collision.gameObject.name);
             PickupItem(collision.gameObject);
         }
     }
@@ -145,32 +145,50 @@ public class HeartItem : MonoBehaviour
             return;
         }
         
-        Debug.Log("HeartItem: PickupItem called");
+        Debug.Log("HeartItem: PickupItem called on player: " + playerObj.name);
         
         canPickup = false;
         isPulling = false;
         
-        // Get player health manager
+        // Get player health manager - search recursively through all components
         HealthManager healthManager = playerObj.GetComponent<HealthManager>();
         
-        if (healthManager != null)
+        Debug.Log("HeartItem: HealthManager found: " + (healthManager != null ? "YES" : "NO"));
+        
+        if (healthManager == null)
         {
-            // Check if player is already at full health
-            if (healthManager.GetCurrentHealth() >= healthManager.GetMaxHealth())
+            Debug.LogError("HeartItem: HealthManager is NULL on player " + playerObj.name + "! Searching all components...");
+            
+            // Debug: list all components
+            Component[] components = playerObj.GetComponents<Component>();
+            foreach (Component comp in components)
             {
-                Debug.Log("Player health is already full! Heart not used.");
-                canPickup = true; // Re-enable pickup
-                return;
+                Debug.Log("  - Component found: " + comp.GetType().Name);
             }
             
-            // Heal player
-            healthManager.Heal(healAmount);
-            Debug.Log("Player healed by: " + healAmount + " HP. Current health: " + healthManager.GetCurrentHealth());
-        }
-        else
-        {
             Debug.LogWarning("HeartItem: HealthManager not found on player!");
+            return;
         }
+        
+        // Check if player is already at full health
+        int currentHealth = healthManager.GetCurrentHealth();
+        int maxHealth = healthManager.GetMaxHealth();
+        
+        Debug.Log("HeartItem: Current Health: " + currentHealth + " / Max Health: " + maxHealth);
+        
+        if (currentHealth >= maxHealth)
+        {
+            Debug.Log("Player health is already full! Heart not used.");
+            canPickup = true; // Re-enable pickup
+            return;
+        }
+        
+        // Heal player
+        Debug.Log("HeartItem: Calling Heal(" + healAmount + ")");
+        healthManager.Heal(healAmount);
+        
+        int newHealth = healthManager.GetCurrentHealth();
+        Debug.Log("Player healed by: " + healAmount + " HP. New health: " + newHealth);
         
         // Play pickup mouth animation
         MouthAnimation mouthAnimation = playerObj.GetComponent<MouthAnimation>();
