@@ -14,17 +14,29 @@ public class HeartDropper : MonoBehaviour
     
     public void TryDropHeart()
     {
+        Debug.Log("HeartDropper.TryDropHeart() called on " + gameObject.name);
+        
+        // Check if heart prefab is assigned
+        if (heartPrefab == null)
+        {
+            Debug.LogWarning("HeartDropper: Heart prefab not assigned on " + gameObject.name + "!");
+            return;
+        }
+        
         // Roll for drop chance
         float randomChance = Random.Range(0f, 1f);
+        
+        Debug.Log("Heart drop roll: " + randomChance + " vs chance: " + dropChance);
         
         if (randomChance > dropChance)
         {
             // Drop failed
-            Debug.Log("Heart drop chance failed. Roll: " + randomChance + " vs Chance: " + dropChance);
+            Debug.Log("Heart drop chance failed.");
             return;
         }
         
         // Chance succeeded - drop heart
+        Debug.Log("Heart drop SUCCESSFUL!");
         DropHeart();
     }
     
@@ -32,7 +44,7 @@ public class HeartDropper : MonoBehaviour
     {
         if (heartPrefab == null)
         {
-            Debug.LogWarning("HeartDropper: Heart prefab not assigned!");
+            Debug.LogError("HeartDropper: Heart prefab is null in DropHeart!");
             return;
         }
         
@@ -47,8 +59,12 @@ public class HeartDropper : MonoBehaviour
         float randomDistance = Random.Range(0.2f, dropRadius);
         Vector3 dropPosition = transform.position + (Vector3)scatterDirection * randomDistance;
         
+        Debug.Log("Attempting to instantiate heart at: " + dropPosition);
+        
         // Instantiate the heart
         GameObject droppedHeart = Instantiate(heartPrefab, dropPosition, Quaternion.identity);
+        
+        Debug.Log("Heart instantiated: " + droppedHeart.name);
         
         // Apply physics to the heart
         Rigidbody2D rb = droppedHeart.GetComponent<Rigidbody2D>();
@@ -62,11 +78,11 @@ public class HeartDropper : MonoBehaviour
             Vector2 scatterVelocity = scatterDirection * dropForce;
             rb.velocity = scatterVelocity;
             
-            Debug.Log("Heart dropped at: " + dropPosition + " with velocity: " + rb.velocity);
+            Debug.Log("Heart physics applied: velocity = " + rb.velocity);
         }
         else
         {
-            Debug.LogWarning("Heart prefab has no Rigidbody2D!");
+            Debug.LogWarning("Heart prefab " + heartPrefab.name + " has no Rigidbody2D component!");
         }
         
         // Disable pickup temporarily
@@ -75,7 +91,14 @@ public class HeartDropper : MonoBehaviour
         {
             heartItem.SetPickupEnabled(false);
             StartCoroutine(EnablePickupAfterDelay(heartItem));
+            Debug.Log("Heart item found and pickup disabled temporarily");
         }
+        else
+        {
+            Debug.LogWarning("Heart prefab " + heartPrefab.name + " has no HeartItem component!");
+        }
+        
+        Debug.Log("Heart successfully dropped at: " + dropPosition);
     }
     
     private System.Collections.IEnumerator EnablePickupAfterDelay(HeartItem heartItem)
