@@ -427,8 +427,15 @@ public class TeleportSystem : MonoBehaviour
             enemyLoot.DropLoot();
         }
         
+        // Notify EnemySpawner that an enemy was killed
+        EnemySpawner spawner = EnemySpawner.GetInstance();
+        if (spawner != null)
+        {
+            spawner.OnEnemyDestroyed();
+        }
+        
         // Destroy the enemy
         Destroy(enemy);
-        Debug.Log("Enemy destroyed by teleport line!");
+        Debug.Log("Enemy destroyed by teleport line! Notified spawner.");
     }
 }
