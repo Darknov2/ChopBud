@@ -30,10 +30,13 @@ public class TeleportSystem : MonoBehaviour
     [Header("Item Pickup Settings")]
     [SerializeField] private bool pickupAllItems = true;
     [SerializeField] private string itemPickupTag = "Item";
+    [SerializeField] private AudioClip pickupSound;
+    [SerializeField] private float soundVolume = 1f;
     
     private Camera mainCamera;
     private InputManager inputManager;
     private HashSet<GameObject> pickedUpItems = new HashSet<GameObject>();
+    private AudioSource audioSource;
     
     private void Start()
     {
@@ -64,6 +67,13 @@ public class TeleportSystem : MonoBehaviour
         if (mainCamera == null)
         {
             Debug.LogError("Main camera not found!");
+        }
+        
+        // Create AudioSource for pickup sounds
+        if (pickupSound != null)
+        {
+            audioSource = gameObject.AddComponent<AudioSource>();
+            audioSource.playOnAwake = false;
         }
     }
     
@@ -317,12 +327,24 @@ public class TeleportSystem : MonoBehaviour
             mouthAnimation.PlayPickupMouthAnimation();
         }
         
+        // Play pickup sound
+        PlayPickupSoundEffect();
+        
         // Destroy the item
         Destroy(item);
         
         Debug.Log("Picked up item: " + item.name);
         
         return coinsFromItem;
+    }
+    
+    private void PlayPickupSoundEffect()
+    {
+        if (audioSource != null && pickupSound != null)
+        {
+            audioSource.PlayOneShot(pickupSound, soundVolume);
+            Debug.Log("Playing pickup sound effect");
+        }
     }
     
     private void CombineItems(List<GameObject> items, CombineRecipe recipe)
