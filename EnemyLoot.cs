@@ -13,7 +13,7 @@ public class EnemyLoot : MonoBehaviour
     [SerializeField] private float scatterRadius = 3f;
     [SerializeField] private float upwardForce = 3f; // Initial upward velocity
     [SerializeField] private float pickupDelay = 0.2f; // Delay before items can be picked up
-    [SerializeField] private float stopFallHeight = -5f; // Y position where items stop falling
+    [SerializeField] private float freezeAfterTime = 2f; // Time before items freeze
     
     public void DropLoot()
     {
@@ -35,30 +35,6 @@ public class EnemyLoot : MonoBehaviour
                 // Instantiate the loot item
                 GameObject droppedItem = Instantiate(lootPrefab, dropPosition, Quaternion.identity);
                 
-                // Get Rigidbody2D component
-                Rigidbody2D rb = droppedItem.GetComponent<Rigidbody2D>();
-                
-                if (rb != null)
-                {
-                    // Make sure rigidbody is not kinematic
-                    rb.isKinematic = false;
-                    
-                    // Calculate velocity: outward scatter + upward force
-                    Vector2 scatterVelocity = scatterDirection * dropForce;
-                    Vector2 upwardVelocity = Vector2.up * upwardForce;
-                    
-                    rb.velocity = scatterVelocity + upwardVelocity;
-                    
-                    // Add rotation for spinning effect
-                    rb.angularVelocity = Random.Range(-360f, 360f);
-                    
-                    Debug.Log("Applied physics to dropped item: velocity = " + rb.velocity);
-                }
-                else
-                {
-                    Debug.LogWarning("Dropped item has no Rigidbody2D!");
-                }
-                
                 // Disable pickup temporarily, then enable after delay
                 ItemPickup itemPickup = droppedItem.GetComponent<ItemPickup>();
                 if (itemPickup != null)
@@ -67,8 +43,11 @@ public class EnemyLoot : MonoBehaviour
                     StartCoroutine(EnablePickupAfterDelay(itemPickup));
                 }
                 
-                // Start monitoring for when item reaches stop fall height
-                StartCoroutine(MonitorItemFall(droppedItem, rb));
+                // Start applying physics with a delay to ensure rigidbody is ready
+                StartCoroutine(ApplyPhysicsWithDelay(droppedItem, scatterDirection));
+                
+                // Start timer to freeze item after set time
+                StartCoroutine(FreezeItemAfterTime(droppedItem));
                 
                 Debug.Log("Dropped " + lootItemName + " at position: " + dropPosition + " with physics movement");
             }
@@ -80,23 +59,58 @@ public class EnemyLoot : MonoBehaviour
         }
     }
     
-    private IEnumerator MonitorItemFall(GameObject item, Rigidbody2D rb)
+    private IEnumerator ApplyPhysicsWithDelay(GameObject item, Vector2 scatterDirection)
     {
-        while (item != null && rb != null)
+        // Wait a frame to ensure Rigidbody2D is fully initialized
+        yield return new WaitForEndOfFrame();
+        
+        if (item == null)
+            yield break;
+        
+        // Get Rigidbody2D component
+        Rigidbody2D rb = item.GetComponent<Rigidbody2D>();
+        
+        if (rb != null)
         {
-            // Check if item has reached the stop fall height
-            if (item.transform.position.y <= stopFallHeight)
-            {
-                // Stop the item from falling
-                rb.velocity = Vector2.zero;
-                rb.angularVelocity = 0f;
-                rb.isKinematic = true;
-                
-                Debug.Log("Item stopped falling at height: " + item.transform.position.y);
-                break;
-            }
+            // Make sure rigidbody is not kinematic
+            rb.isKinematic = false;
             
-            yield return null;
+            // Calculate velocity: outward scatter + upward force
+            Vector2 scatterVelocity = scatterDirection * dropForce;
+            Vector2 upwardVelocity = Vector2.up * upwardForce;
+            
+            rb.velocity = scatterVelocity + upwardVelocity;
+            
+            // Add rotation for spinning effect
+            rb.angularVelocity = Random.Range(-360f, 360f);
+            
+            Debug.Log("Applied physics to dropped item: velocity = " + rb.velocity);
+        }
+        else
+        {
+            Debug.LogWarning("Dropped item has no Rigidbody2D!");
+        }
+    }
+    
+    private IEnumerator FreezeItemAfterTime(GameObject item)
+    {
+        // Wait for the specified freeze time
+        yield return new WaitForSeconds(freezeAfterTime);
+        
+        if (item == null)
+            yield break;
+        
+        // Get Rigidbody2D component
+        Rigidbody2D rb = item.GetComponent<Rigidbody2D>();
+        
+        if (rb != null)
+        {
+            // Stop the item from falling
+            rb.velocity = Vector2.zero;
+            rb.angularVelocity = 0f;
+            rb.isKinematic = true;
+            
+            Debug.Log("Item frozen after " + freezeAfterTime + " seconds at position: " + item.transform.position);
         }
     }
     
