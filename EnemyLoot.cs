@@ -9,9 +9,10 @@ public class EnemyLoot : MonoBehaviour
     [SerializeField] private GameObject lootPrefab; // Prefab of item to drop
     
     [Header("Drop Physics")]
-    [SerializeField] private float scatterForce = 2f; // Reduced from dropForce for slower scatter
+    [SerializeField] private float scatterForce = 3f; // Horizontal scatter speed
     [SerializeField] private float scatterRadius = 3f;
     [SerializeField] private float pickupDelay = 0.2f; // Delay before items can be picked up
+    [SerializeField] private float groundDrag = 2f; // Friction to slow items on ground
     
     public void DropLoot()
     {
@@ -41,9 +42,10 @@ public class EnemyLoot : MonoBehaviour
                 {
                     // Make sure rigidbody is not kinematic
                     rb.isKinematic = false;
-                    rb.gravityScale = 0f; // No gravity - items float
+                    rb.gravityScale = 1f; // Normal gravity - items fall to ground
+                    rb.drag = groundDrag; // Friction to slow horizontal movement
                     
-                    // Calculate velocity: outward scatter with low speed
+                    // Calculate velocity: outward scatter (horizontal only)
                     Vector2 scatterVelocity = scatterDirection * scatterForce;
                     
                     rb.velocity = scatterVelocity;
