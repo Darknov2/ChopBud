@@ -34,6 +34,7 @@ public class EnemySpawner : MonoBehaviour
     private bool isWaveActive = false;
     private bool isBetweenWaves = false;
     private float breakTimer = 0f;
+    private bool waveEnded = false; // Flag to prevent multiple wave end calls
     
     private static EnemySpawner instance;
     
@@ -116,18 +117,21 @@ public class EnemySpawner : MonoBehaviour
                 }
                 spawnTimer = 0f;
             }
+        }
+        
+        // Check if wave is complete (all enemies spawned and all killed)
+        // This happens OUTSIDE the spawning block so it checks even after spawning stops
+        if (isWaveActive && !waveEnded && enemiesSpawnedInWave > 0 && enemiesKilledInWave >= enemiesSpawnedInWave)
+        {
+            waveEnded = true;
             
-            // Check if wave is complete (all enemies spawned and all killed)
-            if (enemiesSpawnedInWave > 0 && enemiesKilledInWave >= enemiesSpawnedInWave)
+            if (currentWaveIndex < waves.Count - 1)
             {
-                if (currentWaveIndex < waves.Count - 1)
-                {
-                    EndWave();
-                }
-                else
-                {
-                    AllWavesComplete();
-                }
+                EndWave();
+            }
+            else
+            {
+                AllWavesComplete();
             }
         }
     }
@@ -152,6 +156,7 @@ public class EnemySpawner : MonoBehaviour
         enemiesKilledInWave = 0;
         spawnTimer = 0f;
         isWaveActive = true;
+        waveEnded = false; // Reset flag for new wave
         
         Wave currentWave = waves[currentWaveIndex];
         
