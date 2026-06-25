@@ -28,13 +28,13 @@ public class EnemySpawner : MonoBehaviour
     
     private float spawnTimer = 0f;
     private int enemiesSpawnedInWave = 0; // Track how many enemies we've spawned
-    private int enemiesKilledInWave = 0; // Track how many enemies have been killed
     private int currentWaveIndex = 0;
     private bool isSpawning = false;
     private bool isWaveActive = false;
     private bool isBetweenWaves = false;
     private float breakTimer = 0f;
-    private bool waveEnded = false; // Flag to prevent multiple wave end calls
+    private float waveCheckTimer = 0f;
+    private float waveCheckInterval = 1f; // Check every second if wave is complete
     
     private static EnemySpawner instance;
     
@@ -117,23 +117,39 @@ public class EnemySpawner : MonoBehaviour
                 }
                 spawnTimer = 0f;
             }
-        }
-        
-        // Check if wave is complete (all enemies spawned and all killed)
-        // This happens OUTSIDE the spawning block so it checks even after spawning stops
-        if (isWaveActive && !waveEnded && enemiesSpawnedInWave > 0 && enemiesKilledInWave >= enemiesSpawnedInWave)
-        {
-            waveEnded = true;
             
-            if (currentWaveIndex < waves.Count - 1)
+            // Check periodically if all enemies are dead (no active enemies in scene)
+            waveCheckTimer += Time.deltaTime;
+            if (waveCheckTimer >= waveCheckInterval)
             {
-                EndWave();
-            }
-            else
-            {
-                AllWavesComplete();
+                waveCheckTimer = 0f;
+                
+                // All enemies for this wave have been spawned and we check if any remain
+                if (enemiesSpawnedInWave > 0)
+                {
+                    int activeEnemies = FindActiveEnemies();
+                    
+                    if (activeEnemies == 0)
+                    {
+                        // All enemies defeated
+                        if (currentWaveIndex < waves.Count - 1)
+                        {
+                            EndWave();
+                        }
+                        else
+                        {
+                            AllWavesComplete();
+                        }
+                    }
+                }
             }
         }
+    }
+    
+    private int FindActiveEnemies()
+    {
+        GameObject[] allEnemies = GameObject.FindGameObjectsWithTag("Enemy");
+        return allEnemies.Length;
     }
     
     private void StartWaveSystem()
@@ -153,10 +169,9 @@ public class EnemySpawner : MonoBehaviour
         }
         
         enemiesSpawnedInWave = 0;
-        enemiesKilledInWave = 0;
         spawnTimer = 0f;
+        waveCheckTimer = 0f;
         isWaveActive = true;
-        waveEnded = false; // Reset flag for new wave
         
         Wave currentWave = waves[currentWaveIndex];
         
@@ -197,7 +212,7 @@ public class EnemySpawner : MonoBehaviour
         
         enemiesSpawnedInWave++;
         
-        Debug.Log("Enemy spawned at: " + spawnPosition + " (Spawned: " + enemiesSpawnedInWave + "/" + wave.maxEnemies + ", Killed: " + enemiesKilledInWave + ")");
+        Debug.Log("Enemy spawned at: " + spawnPosition + " (Spawned: " + enemiesSpawnedInWave + "/" + wave.maxEnemies + ")");
     }
     
     private void EndWave()
@@ -207,7 +222,7 @@ public class EnemySpawner : MonoBehaviour
         isBetweenWaves = true;
         breakTimer = breakBetweenWaves;
         
-        Debug.Log("Wave ended! " + enemiesKilledInWave + " enemies killed. Starting " + breakBetweenWaves + "s break before next wave...");
+        Debug.Log("Wave ended! Starting " + breakBetweenWaves + "s break before next wave...");
     }
     
     private void AllWavesComplete()
@@ -234,15 +249,6 @@ public class EnemySpawner : MonoBehaviour
         }
     }
     
-    public void OnEnemyDestroyed()
-    {
-        if (isWaveActive)
-        {
-            enemiesKilledInWave++;
-            Debug.Log("Enemy defeated! Wave Progress: " + enemiesKilledInWave + "/" + enemiesSpawnedInWave);
-        }
-    }
-    
     public void StopSpawning()
     {
         isSpawning = false;
@@ -254,11 +260,6 @@ public class EnemySpawner : MonoBehaviour
     public int GetEnemiesSpawnedInWave()
     {
         return enemiesSpawnedInWave;
-    }
-    
-    public int GetEnemiesKilledInWave()
-    {
-        return enemiesKilledInWave;
     }
     
     public int GetCurrentWaveIndex()
