@@ -33,8 +33,16 @@ public class HeartItem : MonoBehaviour
             Debug.LogWarning("HeartItem: No Collider2D found on " + gameObject.name);
         }
         
+        // Ensure collider is a trigger so teleport can detect it
+        if (itemCollider != null)
+        {
+            itemCollider.isTrigger = true;
+        }
+        
         // Create AudioSource if playSound is enabled
         InitializeAudioSource();
+        
+        Debug.Log("HeartItem initialized: " + gameObject.name + ", Collider trigger: " + (itemCollider != null ? itemCollider.isTrigger : false));
     }
     
     private void Update()
@@ -115,6 +123,7 @@ public class HeartItem : MonoBehaviour
     {
         if (canPickup && collision.CompareTag("Player"))
         {
+            Debug.Log("HeartItem: OnTriggerEnter2D with player!");
             PickupItem(collision.gameObject);
         }
     }
@@ -123,20 +132,26 @@ public class HeartItem : MonoBehaviour
     {
         if (canPickup && collision.gameObject.CompareTag("Player"))
         {
+            Debug.Log("HeartItem: OnCollisionEnter2D with player!");
             PickupItem(collision.gameObject);
         }
     }
     
-    private void PickupItem(GameObject player)
+    private void PickupItem(GameObject playerObj)
     {
         if (!canPickup)
+        {
+            Debug.Log("HeartItem: Pickup disabled, ignoring pickup attempt");
             return;
+        }
+        
+        Debug.Log("HeartItem: PickupItem called");
         
         canPickup = false;
         isPulling = false;
         
         // Get player health manager
-        HealthManager healthManager = player.GetComponent<HealthManager>();
+        HealthManager healthManager = playerObj.GetComponent<HealthManager>();
         
         if (healthManager != null)
         {
@@ -158,7 +173,7 @@ public class HeartItem : MonoBehaviour
         }
         
         // Play pickup mouth animation
-        MouthAnimation mouthAnimation = player.GetComponent<MouthAnimation>();
+        MouthAnimation mouthAnimation = playerObj.GetComponent<MouthAnimation>();
         if (mouthAnimation != null)
         {
             mouthAnimation.PlayPickupMouthAnimation();
@@ -200,5 +215,6 @@ public class HeartItem : MonoBehaviour
     public void SetPickupEnabled(bool enabled)
     {
         canPickup = enabled;
+        Debug.Log("HeartItem: Pickup " + (enabled ? "enabled" : "disabled"));
     }
 }
