@@ -27,12 +27,27 @@ public class EnemySpawner : MonoBehaviour
     [SerializeField] private TextMeshProUGUI waveText; // Display wave start message
     
     private float spawnTimer = 0f;
-    private int currentEnemyCount = 0;
+    private int enemiesSpawnedInWave = 0; // Track how many enemies we've spawned
+    private int enemiesKilledInWave = 0; // Track how many enemies have been killed
     private int currentWaveIndex = 0;
     private bool isSpawning = false;
     private bool isWaveActive = false;
     private bool isBetweenWaves = false;
     private float breakTimer = 0f;
+    
+    private static EnemySpawner instance;
+    
+    private void Awake()
+    {
+        if (instance == null)
+        {
+            instance = this;
+        }
+        else
+        {
+            Destroy(gameObject);
+        }
+    }
     
     private void Start()
     {
@@ -95,15 +110,15 @@ public class EnemySpawner : MonoBehaviour
             
             if (spawnTimer >= currentWave.spawnRate)
             {
-                if (currentEnemyCount < currentWave.maxEnemies)
+                if (enemiesSpawnedInWave < currentWave.maxEnemies)
                 {
                     SpawnEnemy(currentWave);
                 }
                 spawnTimer = 0f;
             }
             
-            // Check if wave is complete (all enemies spawned and defeated)
-            if (currentEnemyCount == 0 && spawnTimer > 1f) // Small delay to ensure all enemies are spawned first
+            // Check if wave is complete (all enemies spawned and all killed)
+            if (enemiesSpawnedInWave > 0 && enemiesKilledInWave >= enemiesSpawnedInWave)
             {
                 if (currentWaveIndex < waves.Count - 1)
                 {
@@ -133,7 +148,8 @@ public class EnemySpawner : MonoBehaviour
             return;
         }
         
-        currentEnemyCount = 0;
+        enemiesSpawnedInWave = 0;
+        enemiesKilledInWave = 0;
         spawnTimer = 0f;
         isWaveActive = true;
         
@@ -174,9 +190,9 @@ public class EnemySpawner : MonoBehaviour
         // Instantiate enemy
         GameObject newEnemy = Instantiate(randomEnemyPrefab, spawnPosition, Quaternion.identity);
         
-        currentEnemyCount++;
+        enemiesSpawnedInWave++;
         
-        Debug.Log("Enemy spawned at: " + spawnPosition + " (Total: " + currentEnemyCount + "/" + wave.maxEnemies + ")");
+        Debug.Log("Enemy spawned at: " + spawnPosition + " (Spawned: " + enemiesSpawnedInWave + "/" + wave.maxEnemies + ", Killed: " + enemiesKilledInWave + ")");
     }
     
     private void EndWave()
@@ -186,7 +202,7 @@ public class EnemySpawner : MonoBehaviour
         isBetweenWaves = true;
         breakTimer = breakBetweenWaves;
         
-        Debug.Log("Wave ended! Starting " + breakBetweenWaves + "s break before next wave...");
+        Debug.Log("Wave ended! " + enemiesKilledInWave + " enemies killed. Starting " + breakBetweenWaves + "s break before next wave...");
     }
     
     private void AllWavesComplete()
@@ -215,10 +231,10 @@ public class EnemySpawner : MonoBehaviour
     
     public void OnEnemyDestroyed()
     {
-        if (currentEnemyCount > 0)
+        if (isWaveActive)
         {
-            currentEnemyCount--;
-            Debug.Log("Enemy destroyed. Remaining: " + currentEnemyCount);
+            enemiesKilledInWave++;
+            Debug.Log("Enemy defeated! Wave Progress: " + enemiesKilledInWave + "/" + enemiesSpawnedInWave);
         }
     }
     
@@ -230,14 +246,24 @@ public class EnemySpawner : MonoBehaviour
         Debug.Log("Wave system stopped!");
     }
     
-    public int GetCurrentEnemyCount()
+    public int GetEnemiesSpawnedInWave()
     {
-        return currentEnemyCount;
+        return enemiesSpawnedInWave;
+    }
+    
+    public int GetEnemiesKilledInWave()
+    {
+        return enemiesKilledInWave;
     }
     
     public int GetCurrentWaveIndex()
     {
         return currentWaveIndex + 1; // Return 1-indexed wave number
+    }
+    
+    public static EnemySpawner GetInstance()
+    {
+        return instance;
     }
     
     #if UNITY_EDITOR
