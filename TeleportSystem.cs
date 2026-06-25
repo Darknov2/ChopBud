@@ -419,23 +419,22 @@ public class TeleportSystem : MonoBehaviour
     
     private void DestroyEnemy(GameObject enemy)
     {
-        EnemyLoot enemyLoot = enemy.GetComponent<EnemyLoot>();
-        
-        if (enemyLoot != null)
+        // Try heart drop first
+        HeartDropper heartDropper = enemy.GetComponent<HeartDropper>();
+        if (heartDropper != null)
         {
-            // Drop loot before destroying
-            enemyLoot.DropLoot();
+            heartDropper.TryDropHeart();
         }
         
-        // Notify EnemySpawner that an enemy was killed
-        EnemySpawner spawner = EnemySpawner.GetInstance();
-        if (spawner != null)
+        // Drop regular loot
+        EnemyLoot enemyLoot = enemy.GetComponent<EnemyLoot>();
+        if (enemyLoot != null)
         {
-            spawner.OnEnemyDestroyed();
+            enemyLoot.DropLoot();
         }
         
         // Destroy the enemy
         Destroy(enemy);
-        Debug.Log("Enemy destroyed by teleport line! Notified spawner.");
+        Debug.Log("Enemy destroyed by teleport line!");
     }
 }
