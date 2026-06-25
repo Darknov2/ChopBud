@@ -16,6 +16,7 @@ public class HealthManager : MonoBehaviour
     {
         currentHealth = maxHealth;
         UpdateHeartDisplay();
+        Debug.Log("HealthManager initialized: Max Health = " + maxHealth + ", Heart Images count = " + (heartImages != null ? heartImages.Length : 0));
     }
     
     public void TakeDamage(int damage = 1)
@@ -31,6 +32,7 @@ public class HealthManager : MonoBehaviour
         }
         
         UpdateHeartDisplay();
+        Debug.Log("Player took " + damage + " damage. Current health: " + currentHealth);
         
         if (currentHealth <= 0)
         {
@@ -40,8 +42,14 @@ public class HealthManager : MonoBehaviour
     
     public void Heal(int healAmount = 1)
     {
+        Debug.Log("HealthManager.Heal() called with healAmount: " + healAmount);
+        Debug.Log("  Before: currentHealth = " + currentHealth + ", maxHealth = " + maxHealth);
+        
         if (isDead)
+        {
+            Debug.Log("  Heal blocked: Player is dead");
             return;
+        }
         
         currentHealth += healAmount;
         
@@ -50,11 +58,20 @@ public class HealthManager : MonoBehaviour
             currentHealth = maxHealth;
         }
         
+        Debug.Log("  After: currentHealth = " + currentHealth);
+        
         UpdateHeartDisplay();
+        Debug.Log("  Heart display updated");
     }
     
     private void UpdateHeartDisplay()
     {
+        if (heartImages == null || heartImages.Length == 0)
+        {
+            Debug.LogWarning("HealthManager: heartImages array is empty or null! Health UI will not update.");
+            return;
+        }
+        
         for (int i = 0; i < heartImages.Length; i++)
         {
             if (i < currentHealth)
@@ -66,6 +83,8 @@ public class HealthManager : MonoBehaviour
                 heartImages[i].sprite = emptyHeartSprite;
             }
         }
+        
+        Debug.Log("Heart display updated to show: " + currentHealth + "/" + maxHealth);
     }
     
     private void PlayerDied()
@@ -84,7 +103,7 @@ public class HealthManager : MonoBehaviour
         Rigidbody2D rb = GetComponent<Rigidbody2D>();
         if (rb != null)
         {
-            rb.velocity = Vector2.zero;
+            rb.linearVelocity = Vector2.zero;
             rb.isKinematic = true;
         }
         
