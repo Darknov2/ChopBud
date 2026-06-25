@@ -15,13 +15,22 @@ public class ItemPickup : MonoBehaviour
     [SerializeField] private int coinAmount = 10;
     [SerializeField] private bool givesCoins = true;
     
+    [Header("Magnet Settings")]
+    [SerializeField] private float pullDistance = 3f; // Distance at which items start being pulled
+    [SerializeField] private float pullSpeed = 5f; // Speed at which items move toward player
+    [SerializeField] private float pickupDistance = 0.5f; // Distance at which item is picked up
+    
     private bool canPickup = true;
     private Collider2D itemCollider;
     private AudioSource audioSource;
+    private Rigidbody2D rb;
+    private GameObject player;
+    private bool isPulling = false;
     
     private void Start()
     {
         itemCollider = GetComponent<Collider2D>();
+        rb = GetComponent<Rigidbody2D>();
         
         if (itemCollider == null)
         {
@@ -30,6 +39,62 @@ public class ItemPickup : MonoBehaviour
         
         // Create AudioSource if playSound is enabled
         InitializeAudioSource();
+    }
+    
+    private void Update()
+    {
+        // Find player if not already found
+        if (player == null)
+        {
+            GameObject foundPlayer = GameObject.FindGameObjectWithTag(playerTag);
+            if (foundPlayer != null)
+            {
+                player = foundPlayer;
+            }
+        }
+        
+        // Check if player is within pull distance
+        if (player != null && canPickup && !isPulling)
+        {
+            float distanceToPlayer = Vector3.Distance(transform.position, player.transform.position);
+            
+            if (distanceToPlayer <= pullDistance)
+            {
+                isPulling = true;
+                Debug.Log("Item " + gameObject.name + " started pulling toward player");
+            }
+        }
+        
+        // Pull item toward player if pulling
+        if (isPulling && player != null)
+        {
+            PullTowardPlayer();
+        }
+    }
+    
+    private void PullTowardPlayer()
+    {
+        Vector3 directionToPlayer = (player.transform.position - transform.position).normalized;
+        float distanceToPlayer = Vector3.Distance(transform.position, player.transform.position);
+        
+        // Check if item is close enough to pick up
+        if (distanceToPlayer <= pickupDistance)
+        {
+            PickupItem(player);
+            return;
+        }
+        
+        // Move item toward player
+        if (rb != null && !rb.isKinematic)
+        {
+            // Use velocity to pull item
+            rb.velocity = directionToPlayer * pullSpeed;
+        }
+        else
+        {
+            // Fallback to transform movement if no rigidbody
+            transform.position += directionToPlayer * pullSpeed * Time.deltaTime;
+        }
     }
     
     private void InitializeAudioSource()
@@ -68,6 +133,12 @@ public class ItemPickup : MonoBehaviour
     
     private void PickupItem(GameObject player)
     {
+        if (!canPickup)
+            return;
+        
+        canPickup = false;
+        isPulling = false;
+        
         Debug.Log("Item picked up by: " + player.name);
         
         // Add coins to player
